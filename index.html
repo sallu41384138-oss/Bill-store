@@ -1319,7 +1319,15 @@
 
   function saveToCache(bills){
     try{
-      localStorage.setItem(CACHE_KEY, JSON.stringify(bills));
+      // ছবি (base64) বাদ দিয়ে সেভ করা হয়, কারণ ছবিসহ ডেটা localStorage-এর জায়গার সীমা
+      // (~৫-১০MB) সহজেই ছাড়িয়ে যায় এবং তখন পুরো সেভটাই silently fail করে।
+      // ছবি ছাড়া, লেখা অংশ (আইপি/নাম/টাকা/তারিখ) দিয়ে সাথে সাথে তালিকা দেখানো যাবে,
+      // আসল ছবি একটু পরে Firebase থেকে এসে যোগ হয়ে যাবে।
+      const lightweight = bills.map(b=>{
+        const { image, ...rest } = b;
+        return rest;
+      });
+      localStorage.setItem(CACHE_KEY, JSON.stringify(lightweight));
     }catch(e){
       console.error('cache save failed:', e);
     }
