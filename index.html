@@ -313,7 +313,24 @@
   }
   td.chk-cell{
     text-align:center;
-    width:28px;
+    width:52px;
+    white-space:nowrap;
+  }
+  td.chk-cell button.edit{
+    width:22px;height:22px;
+    border-radius:50%;
+    border:none;
+    background:transparent;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-size:12px;
+    line-height:1;
+    vertical-align:middle;
+    margin-left:4px;
+  }
+  td.chk-cell button.edit:hover{
+    background:var(--accent);
+    color:var(--white);
   }
 
   .empty{
@@ -459,10 +476,6 @@
   }
   table.sheet td.del-cell button:hover{
     background:var(--red);
-    color:var(--white);
-  }
-  table.sheet td.del-cell button.edit:hover{
-    background:var(--accent);
     color:var(--white);
   }
   table.modal-fields td.mf-value input{
@@ -1477,13 +1490,13 @@
           : [bill.ip, bill.name, bill.remark].filter(Boolean).join(' — ');
         const descDisplay = q ? snippetAroundMatch(descSource, q, 60) : descSource;
         row.innerHTML = `
-          <td class="chk-cell"><input type="checkbox" class="row-chk" data-id="${bill.id}" ${selectedIds.has(bill.id) ? 'checked' : ''}></td>
+          <td class="chk-cell"><input type="checkbox" class="row-chk" data-id="${bill.id}" ${selectedIds.has(bill.id) ? 'checked' : ''}><button class="edit" data-id="${bill.id}" title="সম্পাদনা করুন">✎</button></td>
           <td class="rownum">${idx+1}</td>
           <td class="desc-cell" colspan="3" title="বিস্তারিত দেখতে ক্লিক করুন">${highlightHtml(descDisplay, q)}</td>
           <td class="amount-cell">${highlightHtml(formatAmount(bill.amount), q)}</td>
           <td class="date-cell">${highlightHtml(formatDateEnglish(bill.date), q)}</td>
           ${photoCell}
-          <td class="del-cell"><button class="edit" data-id="${bill.id}" title="সম্পাদনা করুন">✎</button><button class="del" data-id="${bill.id}" title="মুছে ফেলুন">&times;</button></td>
+          <td class="del-cell"><button class="del" data-id="${bill.id}" title="মুছে ফেলুন">&times;</button></td>
         `;
         row.querySelector('.desc-cell').addEventListener('click', ()=> openBillModal(bill));
         const img = row.querySelector('.photo-cell img');
