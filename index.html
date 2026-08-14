@@ -87,6 +87,98 @@
     font-size:0.85rem;
   }
 
+  /* ---------- PASTE BOX ---------- */
+  .paste-card{
+    background:var(--white);
+    border:1px solid var(--grid-line);
+    border-radius:8px;
+    box-shadow:var(--shadow);
+    padding:14px 16px;
+    margin-bottom:14px;
+  }
+  .paste-card label{
+    display:block;
+    font-weight:600;
+    font-size:0.9rem;
+    color:var(--ink);
+    margin-bottom:8px;
+  }
+  .paste-card textarea{
+    width:100%;
+    min-height:80px;
+    resize:vertical;
+    border:1px solid var(--grid-line);
+    border-radius:8px;
+    padding:10px 12px;
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:0.9rem;
+    color:var(--ink);
+    outline:none;
+    background:var(--sheet-bg);
+  }
+  .paste-card textarea:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent-soft);
+    background:var(--white);
+  }
+  .paste-actions{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+  .paste-btn{
+    padding:8px 16px;
+    border-radius:8px;
+    border:none;
+    font-family:'Hind Siliguri', sans-serif;
+    font-weight:600;
+    font-size:0.86rem;
+    cursor:pointer;
+  }
+  .paste-btn.fill{ background:var(--accent); color:var(--white); }
+  .paste-btn.fill:hover{ background:#1558B0; }
+  .paste-btn.clear{ background:var(--sheet-bg); color:var(--ink-soft); border:1px solid var(--grid-line); }
+  .paste-btn.clear:hover{ background:#E1E3E6; }
+  .paste-hint{
+    font-size:0.76rem;
+    color:var(--ink-soft);
+    margin-top:6px;
+  }
+  .paste-upload{
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 14px;
+    border-radius:8px;
+    border:1px dashed #9AA0A6;
+    background:var(--sheet-bg);
+    cursor:pointer;
+    font-family:'Hind Siliguri', sans-serif;
+    font-weight:600;
+    font-size:0.86rem;
+    color:var(--ink-soft);
+  }
+  .paste-upload:hover{ border-color:var(--accent); color:var(--accent); }
+  .paste-upload.has-img{ border-style:solid; border-color:var(--accent); }
+  .paste-upload img{
+    width:26px; height:26px;
+    object-fit:cover;
+    border-radius:5px;
+    display:none;
+  }
+  .paste-upload input[type=file]{
+    position:absolute; inset:0; opacity:0; cursor:pointer;
+  }
+  .paste-upload .remove-img{
+    display:none;
+    color:var(--red);
+    font-weight:700;
+    padding:2px 6px;
+    font-size:0.9rem;
+  }
+
   .toolbar{
     display:flex;
     gap:8px;
@@ -414,8 +506,25 @@
     </div>
   </div>
 
+  <div class="paste-card">
+    <label for="pasteInput">📋 বিলের টেক্সট পেস্ট করুন (আইপি, নাম, টাকা, তারিখ ইত্যাদি)</label>
+    <textarea id="pasteInput" placeholder="এখানে আপনার বিলের লেখাগুলো পেস্ট করুন..."></textarea>
+    <div class="paste-actions">
+      <button type="button" class="paste-btn fill" id="pasteFillBtn">নিচের ফর্মে বসান</button>
+      <label class="paste-upload" id="pasteUploadBox">
+        <span id="pasteUploadIcon">📷</span>
+        <img id="pastePreviewImg">
+        <span id="pasteUploadLabel">ছবি যুক্ত করুন</span>
+        <span class="remove-img" id="pasteRemoveImg" title="ছবি সরান">&times;</span>
+        <input type="file" accept="image/*" id="pasteFileInput">
+      </label>
+      <button type="button" class="paste-btn clear" id="pasteClearBtn">মুছুন</button>
+    </div>
+    <p class="paste-hint">টিপ: "আইপি: ...", "নাম: ...", "টাকা: ...", "তারিখ: ..." এভাবে লিখলে সঠিকভাবে আলাদা হবে, নাহলে অনুমান করে ফর্ম পূরণ করা হবে।</p>
+  </div>
+
   <div class="toolbar">
-    <input type="text" id="searchInput" placeholder="নাম অথবা আইপি দিয়ে খুঁজুন...">
+    <input type="text" id="searchInput" placeholder="নাম, আইপি, টাকা, তারিখ বা মন্তব্য দিয়ে খুঁজুন...">
     <select id="monthSelect">
       <option value="all">সব মাস</option>
       <option value="0">জানুয়ারি</option>
@@ -575,6 +684,15 @@
   const modalRemark = document.getElementById('modalRemark');
   const modalRemarkRow = document.getElementById('modalRemarkRow');
   const modalDownload = document.getElementById('modalDownload');
+  const pasteInput = document.getElementById('pasteInput');
+  const pasteFillBtn = document.getElementById('pasteFillBtn');
+  const pasteClearBtn = document.getElementById('pasteClearBtn');
+  const pasteFileInput = document.getElementById('pasteFileInput');
+  const pastePreviewImg = document.getElementById('pastePreviewImg');
+  const pasteUploadIcon = document.getElementById('pasteUploadIcon');
+  const pasteUploadLabel = document.getElementById('pasteUploadLabel');
+  const pasteUploadBox = document.getElementById('pasteUploadBox');
+  const pasteRemoveImg = document.getElementById('pasteRemoveImg');
 
   let currentImageData = null;
   let allBills = [];
@@ -583,17 +701,144 @@
 
   dateInput.value = new Date().toISOString().slice(0,10);
 
-  fileInput.addEventListener('change', (e)=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      currentImageData = ev.target.result;
-      previewImg.src = currentImageData;
+  function setBillImage(dataUrl){
+    currentImageData = dataUrl;
+    if(dataUrl){
+      previewImg.src = dataUrl;
       previewImg.style.display = 'block';
       uploadIcon.style.display = 'none';
-    };
+
+      pastePreviewImg.src = dataUrl;
+      pastePreviewImg.style.display = 'block';
+      pasteUploadIcon.style.display = 'none';
+      pasteUploadLabel.textContent = 'ছবি যুক্ত হয়েছে';
+      pasteUploadBox.classList.add('has-img');
+      pasteRemoveImg.style.display = 'inline';
+    } else {
+      previewImg.src = '';
+      previewImg.style.display = 'none';
+      uploadIcon.style.display = 'block';
+
+      pastePreviewImg.src = '';
+      pastePreviewImg.style.display = 'none';
+      pasteUploadIcon.style.display = 'inline';
+      pasteUploadLabel.textContent = 'ছবি যুক্ত করুন';
+      pasteUploadBox.classList.remove('has-img');
+      pasteRemoveImg.style.display = 'none';
+      fileInput.value = '';
+      pasteFileInput.value = '';
+    }
+  }
+
+  function readImageFile(file){
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=> setBillImage(ev.target.result);
     reader.readAsDataURL(file);
+  }
+
+  fileInput.addEventListener('change', (e)=> readImageFile(e.target.files[0]));
+  pasteFileInput.addEventListener('change', (e)=> readImageFile(e.target.files[0]));
+  pasteRemoveImg.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    setBillImage(null);
+  });
+
+  // ---- Paste box: parse pasted bill text into the form fields ----
+  function parseBillText(text){
+    const result = { ip:'', name:'', amount:'', date:'', remark:'' };
+    if(!text || !text.trim()) return result;
+
+    const lines = text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+    const used = new Set();
+
+    lines.forEach((line, idx)=>{
+      let m;
+      if((m = line.match(/^(?:আইপি|ip|আইডি|id)\s*[:：\-–]\s*(.+)$/i))){
+        result.ip = m[1].trim(); used.add(idx); return;
+      }
+      if((m = line.match(/^(?:নাম|name)\s*[:：\-–]\s*(.+)$/i))){
+        result.name = m[1].trim(); used.add(idx); return;
+      }
+      if((m = line.match(/^(?:টাকা|taka|tk|amount|পরিমাণ)\s*[:：\-–]\s*(.+)$/i))){
+        result.amount = m[1].replace(/[^\d.]/g,''); used.add(idx); return;
+      }
+      if((m = line.match(/^(?:তারিখ|date)\s*[:：\-–]\s*(.+)$/i))){
+        result.date = m[1].trim(); used.add(idx); return;
+      }
+      if((m = line.match(/^(?:মন্তব্য|remark|note)\s*[:：\-–]\s*(.+)$/i))){
+        result.remark = m[1].trim(); used.add(idx); return;
+      }
+    });
+
+    // fallback: amount = first unused number-like token
+    if(!result.amount){
+      for(let i=0;i<lines.length;i++){
+        if(used.has(i)) continue;
+        const m = lines[i].match(/(\d{2,7})(?:\s*(?:টাকা|tk|taka))?/i);
+        if(m){ result.amount = m[1]; used.add(i); break; }
+      }
+    }
+
+    // fallback: date = first unused date-like token
+    if(!result.date){
+      for(let i=0;i<lines.length;i++){
+        if(used.has(i)) continue;
+        let m = lines[i].match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if(m){ result.date = `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`; used.add(i); break; }
+        m = lines[i].match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+        if(m){
+          const y = m[3].length===2 ? '20'+m[3] : m[3];
+          result.date = `${y}-${pad2(m[2])}-${pad2(m[1])}`;
+          used.add(i); break;
+        }
+      }
+    }
+
+    // remaining lines: first becomes name (if empty), a short token becomes ip (if empty), rest becomes remark
+    let remainingIdx = lines.map((_,i)=>i).filter(i=>!used.has(i));
+    if(!result.name && remainingIdx.length){
+      result.name = lines[remainingIdx[0]];
+      used.add(remainingIdx[0]);
+      remainingIdx = remainingIdx.filter(i=>i!==remainingIdx[0]);
+    }
+    if(!result.ip && remainingIdx.length){
+      const idFound = remainingIdx.find(i=> /^[\w.]{1,15}$/.test(lines[i]));
+      if(idFound !== undefined){
+        result.ip = lines[idFound];
+        used.add(idFound);
+        remainingIdx = remainingIdx.filter(i=>i!==idFound);
+      }
+    }
+    const leftover = remainingIdx.map(i=>lines[i]).join(' ').trim();
+    if(leftover){
+      result.remark = (result.remark ? result.remark+' ' : '') + leftover;
+    }
+
+    return result;
+  }
+
+  function applyParsedToForm(){
+    const parsed = parseBillText(pasteInput.value);
+    if(parsed.ip) ipInput.value = parsed.ip;
+    if(parsed.name) nameInput.value = parsed.name;
+    if(parsed.amount) amountInput.value = parsed.amount;
+    if(parsed.date) dateInput.value = parsed.date;
+    if(parsed.remark) remarkInput.value = parsed.remark;
+    if(!parsed.name && !parsed.amount){
+      alert('টেক্সট থেকে কিছু আলাদা করা যায়নি, দয়া করে ফর্মটি নিজে পূরণ করুন।');
+    }
+  }
+
+  pasteFillBtn.addEventListener('click', applyParsedToForm);
+  pasteInput.addEventListener('paste', ()=>{
+    setTimeout(applyParsedToForm, 0);
+  });
+  pasteClearBtn.addEventListener('click', ()=>{
+    pasteInput.value = '';
+    setBillImage(null);
+    pasteInput.focus();
   });
 
   async function saveRow(){
@@ -626,11 +871,8 @@
     nameInput.value = '';
     amountInput.value = '';
     remarkInput.value = '';
-    previewImg.src = '';
-    previewImg.style.display = 'none';
-    uploadIcon.style.display = 'block';
-    fileInput.value = '';
-    currentImageData = null;
+    setBillImage(null);
+    pasteInput.value = '';
     nameInput.focus();
   }
 
@@ -680,9 +922,15 @@
 
     let filtered = bills;
     if(q){
+      // "jekono kichu" search: match against every visible field
       filtered = filtered.filter(b=>
         (b.name||'').toLowerCase().includes(q) ||
-        String(b.ip || '').toLowerCase().includes(q)
+        String(b.ip || '').toLowerCase().includes(q) ||
+        String(b.amount ?? '').toLowerCase().includes(q) ||
+        formatAmount(b.amount || 0).toLowerCase().includes(q) ||
+        (b.remark||'').toLowerCase().includes(q) ||
+        (b.date||'').toLowerCase().includes(q) ||
+        formatDateEnglish(b.date).toLowerCase().includes(q)
       );
     }
     if(monthVal !== 'all'){
@@ -706,6 +954,11 @@
     if(!defaultExpandDone && dateKeys.length){
       expandedDates.add(dateKeys[0]);
       defaultExpandDone = true;
+    }
+
+    // when actively filtering, expand all matching groups so results are visible
+    if(hasFilter){
+      dateKeys.forEach(k=> expandedDates.add(k));
     }
 
     let grandSum = 0;
