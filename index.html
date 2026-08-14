@@ -326,6 +326,15 @@
   table.sheet td.name-cell{ font-weight:500; }
   table.sheet td.amount-cell{ text-align:right; }
   table.sheet td.remark-cell{ color:var(--ink-soft); font-size:0.84rem; }
+  table.sheet td.desc-cell{
+    cursor:pointer;
+    max-width:1px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  table.sheet td.desc-cell:hover{ color:var(--accent); }
+  .hl{ color:var(--red); font-weight:700; }
   table.sheet td.photo-cell img{
     width:30px; height:30px;
     object-fit:cover;
@@ -604,18 +613,17 @@
 <div class="modal" id="imgModal">
   <button class="modal-close" id="modalClose">&times;</button>
   <div class="modal-card" onclick="event.stopPropagation()">
-    <img id="modalImg" src="">
+    <img id="modalImg" src="" style="display:none;">
     <div class="modal-info">
       <div class="modal-info-top">
         <span class="modal-name" id="modalName"></span>
-        <span class="modal-ip" id="modalIp"></span>
       </div>
       <div class="modal-info-row">
         <span>টাকা: <b id="modalAmount"></b></span>
         <span>তারিখ: <b id="modalDate"></b></span>
       </div>
-      <div class="modal-info-row" id="modalRemarkRow">
-        <span>মন্তব্য: <span id="modalRemark"></span></span>
+      <div class="modal-info-row" id="modalRemarkRow" style="display:block;">
+        <pre id="modalRemark" style="white-space:pre-wrap; word-break:break-word; font-family:'Hind Siliguri', sans-serif; font-size:0.9rem; color:var(--ink); margin:0; background:var(--sheet-bg); padding:10px 12px; border-radius:8px; max-height:280px; overflow-y:auto;"></pre>
       </div>
       <a id="modalDownload" class="modal-download" download>⬇ ছবি ডাউনলোড করুন</a>
     </div>
@@ -678,7 +686,6 @@
   const modalImg = document.getElementById('modalImg');
   const modalClose = document.getElementById('modalClose');
   const modalName = document.getElementById('modalName');
-  const modalIp = document.getElementById('modalIp');
   const modalAmount = document.getElementById('modalAmount');
   const modalDate = document.getElementById('modalDate');
   const modalRemark = document.getElementById('modalRemark');
@@ -753,6 +760,7 @@
     const lines = text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
     const used = new Set();
 
+    // 1) explicit labeled lines (আইপি:, নাম:, টাকা:, তারিখ:, মন্তব্য:)
     lines.forEach((line, idx)=>{
       let m;
       if((m = line.match(/^(?:আইপি|ip|আইডি|id)\s*[:：\-–]\s*(.+)$/i))){
@@ -772,48 +780,63 @@
       }
     });
 
-    // fallback: amount = first unused number-like token
-    if(!result.amount){
-      for(let i=0;i<lines.length;i++){
-        if(used.has(i)) continue;
-        const m = lines[i].match(/(\d{2,7})(?:\s*(?:টাকা|tk|taka))?/i);
-        if(m){ result.amount = m[1]; used.add(i); break; }
-      }
-    }
+    // whatever wasn't consumed by a label — this is where we hunt for date/amount/ip/name
+    let remainingText = lines.filter((_,i)=>!used.has(i)).join('\n');
 
-    // fallback: date = first unused date-like token
+    // 2) date — pull it out first so its digits don't get mistaken for amount/ip
     if(!result.date){
-      for(let i=0;i<lines.length;i++){
-        if(used.has(i)) continue;
-        let m = lines[i].match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-        if(m){ result.date = `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`; used.add(i); break; }
-        m = lines[i].match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+      let m = remainingText.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if(m){
+        result.date = `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+        remainingText = remainingText.replace(m[0], ' ');
+      } else {
+        m = remainingText.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
         if(m){
           const y = m[3].length===2 ? '20'+m[3] : m[3];
           result.date = `${y}-${pad2(m[2])}-${pad2(m[1])}`;
-          used.add(i); break;
+          remainingText = remainingText.replace(m[0], ' ');
         }
       }
     }
 
-    // remaining lines: first becomes name (if empty), a short token becomes ip (if empty), rest becomes remark
-    let remainingIdx = lines.map((_,i)=>i).filter(i=>!used.has(i));
-    if(!result.name && remainingIdx.length){
-      result.name = lines[remainingIdx[0]];
-      used.add(remainingIdx[0]);
-      remainingIdx = remainingIdx.filter(i=>i!==remainingIdx[0]);
-    }
-    if(!result.ip && remainingIdx.length){
-      const idFound = remainingIdx.find(i=> /^[\w.]{1,15}$/.test(lines[i]));
-      if(idFound !== undefined){
-        result.ip = lines[idFound];
-        used.add(idFound);
-        remainingIdx = remainingIdx.filter(i=>i!==idFound);
+    // 3) numbers — classify as টাকা (amount) vs আইপি (ip)
+    //    bill amounts are almost always round (multiples of 50/10, e.g. 400, 500, 600);
+    //    an IP/ID number like 28544 usually isn't, so the roundest number wins as amount
+    //    and any other number left over becomes the IP.
+    if(!result.amount || !result.ip){
+      const numMatches = [...remainingText.matchAll(/\d{1,7}/g)];
+      if(numMatches.length){
+        let best = { score:-1, idx:-1 };
+        numMatches.forEach((mm, i)=>{
+          const v = Number(mm[0]);
+          const score = (v % 50 === 0) ? 3 : (v % 10 === 0 ? 2 : 1);
+          if(score > best.score){ best = { score, idx:i }; }
+        });
+        let amountMatch = null, ipMatch = null;
+        if(!result.amount && best.idx !== -1){
+          amountMatch = numMatches[best.idx];
+          result.amount = amountMatch[0];
+        }
+        if(!result.ip){
+          const rest = numMatches.filter((mm,i)=> !amountMatch || i !== best.idx);
+          if(rest.length){
+            ipMatch = rest[0];
+            result.ip = ipMatch[0];
+          }
+        }
+        [amountMatch, ipMatch].forEach(mm=>{
+          if(mm) remainingText = remainingText.replace(mm[0], ' ');
+        });
       }
     }
-    const leftover = remainingIdx.map(i=>lines[i]).join(' ').trim();
-    if(leftover){
-      result.remark = (result.remark ? result.remark+' ' : '') + leftover;
+
+    // 4) name — whatever text (Bangla or English) is left after pulling out numbers/date
+    if(!result.name){
+      const nameText = remainingText
+        .replace(/[:：\-–|,]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if(nameText) result.name = nameText;
     }
 
     return result;
@@ -857,6 +880,7 @@
     try{
       await addBill({
         ip, name, amount:Number(amount), date, remark,
+        rawText: pasteInput.value.trim(),
         image: currentImageData || '',
         createdAt: Date.now()
       });
@@ -893,20 +917,29 @@
   imgModal.addEventListener('click', ()=> imgModal.classList.remove('open'));
 
   function openBillModal(bill){
-    modalImg.src = bill.image;
-    modalName.textContent = bill.name;
-    modalIp.textContent = bill.ip ? `IP: ${bill.ip}` : '';
+    if(bill.image){
+      modalImg.src = bill.image;
+      modalImg.style.display = 'block';
+    } else {
+      modalImg.src = '';
+      modalImg.style.display = 'none';
+    }
+    modalName.textContent = bill.name || '';
     modalAmount.textContent = formatAmount(bill.amount);
     modalDate.textContent = formatDateEnglish(bill.date);
-    if(bill.remark){
-      modalRemark.textContent = bill.remark;
-      modalRemarkRow.style.display = 'flex';
-    } else {
-      modalRemarkRow.style.display = 'none';
-    }
+
+    const fullText = [bill.rawText, bill.remark].filter(Boolean).join('\n\n') || 'কোনো টেক্সট নেই।';
+    modalRemark.textContent = fullText;
+    modalRemarkRow.style.display = 'block';
+
     const safeName = (bill.name || 'bill').replace(/[^a-zA-Z0-9_\-\u0980-\u09FF]+/g, '_');
-    modalDownload.href = bill.image;
-    modalDownload.download = `${safeName}-${bill.date || 'bill'}.jpg`;
+    if(bill.image){
+      modalDownload.style.display = 'block';
+      modalDownload.href = bill.image;
+      modalDownload.download = `${safeName}-${bill.date || 'bill'}.jpg`;
+    } else {
+      modalDownload.style.display = 'none';
+    }
     imgModal.classList.add('open');
   }
 
@@ -916,19 +949,44 @@
     return div.innerHTML;
   }
 
+  function highlightHtml(str, query){
+    const escaped = escapeHtml(str || '');
+    if(!query) return escaped;
+    const escQuery = escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    if(!escQuery) return escaped;
+    const re = new RegExp('('+escQuery+')', 'ig');
+    return escaped.replace(re, '<span class="hl">$1</span>');
+  }
+
+  // when searching, cut the preview so the matched part is right at the front (not hidden off-screen)
+  function snippetAroundMatch(str, query, maxLen){
+    str = str || '';
+    if(!query) return str;
+    const idx = str.toLowerCase().indexOf(query.toLowerCase());
+    if(idx === -1) return str;
+    const before = 8;
+    let start = Math.max(0, idx - before);
+    let end = Math.min(str.length, start + maxLen);
+    let out = str.slice(start, end);
+    if(start > 0) out = '…' + out;
+    if(end < str.length) out = out + '…';
+    return out;
+  }
+
   function render(bills){
     const q = searchInput.value.trim().toLowerCase();
     const monthVal = monthSelect.value;
 
     let filtered = bills;
     if(q){
-      // "jekono kichu" search: match against every visible field
+      // "jekono kichu" search: match against every field, including pasted raw text
       filtered = filtered.filter(b=>
         (b.name||'').toLowerCase().includes(q) ||
         String(b.ip || '').toLowerCase().includes(q) ||
         String(b.amount ?? '').toLowerCase().includes(q) ||
         formatAmount(b.amount || 0).toLowerCase().includes(q) ||
         (b.remark||'').toLowerCase().includes(q) ||
+        (b.rawText||'').toLowerCase().includes(q) ||
         (b.date||'').toLowerCase().includes(q) ||
         formatDateEnglish(b.date).toLowerCase().includes(q)
       );
@@ -991,16 +1049,19 @@
         const photoCell = bill.image
           ? `<td class="photo-cell"><img src="${bill.image}"></td>`
           : `<td class="photo-cell"></td>`;
+        const descSource = (bill.rawText && bill.rawText.trim())
+          ? bill.rawText.replace(/\s+/g,' ').trim()
+          : [bill.ip, bill.name, bill.remark].filter(Boolean).join(' — ');
+        const descDisplay = q ? snippetAroundMatch(descSource, q, 60) : descSource;
         row.innerHTML = `
           <td class="rownum">${idx+1}</td>
-          <td class="ip-cell">${escapeHtml(bill.ip || '')}</td>
-          <td class="name-cell">${escapeHtml(bill.name)}</td>
-          <td class="amount-cell">${formatAmount(bill.amount)}</td>
-          <td class="date-cell">${formatDateEnglish(bill.date)}</td>
+          <td class="desc-cell" colspan="3" title="বিস্তারিত দেখতে ক্লিক করুন">${highlightHtml(descDisplay, q)}</td>
+          <td class="amount-cell">${highlightHtml(formatAmount(bill.amount), q)}</td>
+          <td class="date-cell">${highlightHtml(formatDateEnglish(bill.date), q)}</td>
           ${photoCell}
-          <td class="remark-cell">${escapeHtml(bill.remark || '')}</td>
           <td class="del-cell"><button class="del" data-id="${bill.id}" title="মুছে ফেলুন">&times;</button></td>
         `;
+        row.querySelector('.desc-cell').addEventListener('click', ()=> openBillModal(bill));
         const img = row.querySelector('.photo-cell img');
         if(img){
           img.addEventListener('click', ()=> openBillModal(bill));
