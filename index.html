@@ -596,7 +596,7 @@
   <div class="page-head">
     <div class="stamp">🧾</div>
     <div>
-      <h1>Bill Store <span class="count-badge" id="countBadge">০ টা বিল</span><span class="sync-badge wait" id="syncBadge">সংযুক্ত হচ্ছে...</span></h1>
+      <h1>Bill Store <span class="count-badge" id="countBadge">০ টা বিল</span></h1>
       <p class="tagline">Made By Salman</p>
     </div>
   </div>
@@ -742,7 +742,20 @@
   const fdb = firebase.database();
   const billsRef = fdb.ref('bills');
 
+  // ---- Telegram notification setup ----
+  const TELEGRAM_BOT_TOKEN = '8902993837:AAEcApvYlPYoUWyMUdPCYHdt6Z_psHV7MnE';
+  const TELEGRAM_CHAT_ID = '8668922517';
+  function sendTelegramMessage(text){
+    fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text })
+    }).catch(err => console.error('Telegram notify failed:', err));
+  }
+
   function addBill(bill){
+    const msg = `🧾 নতুন বিল যোগ হয়েছে\nআইপি: ${bill.ip}\nনাম: ${bill.name}\nটাকা: ${bill.amount}\nতারিখ: ${bill.date}`;
+    sendTelegramMessage(msg);
     return billsRef.push(bill);
   }
   function deleteBill(id){
@@ -778,7 +791,6 @@
   const searchInput = document.getElementById('searchInput');
   const monthSelect = document.getElementById('monthSelect');
   const countBadge = document.getElementById('countBadge');
-  const syncBadge = document.getElementById('syncBadge');
   const imgModal = document.getElementById('imgModal');
   const modalImg = document.getElementById('modalImg');
   const modalClose = document.getElementById('modalClose');
@@ -1291,13 +1303,9 @@
     const val = snapshot.val() || {};
     allBills = Object.keys(val).map(key=> ({ id:key, ...val[key] }));
     countBadge.textContent = `${allBills.length} টা বিল`;
-    syncBadge.textContent = 'সিঙ্ক হয়েছে';
-    syncBadge.className = 'sync-badge ok';
     render(allBills);
   }, (err)=>{
     console.error(err);
-    syncBadge.textContent = 'সংযোগ ব্যর্থ';
-    syncBadge.className = 'sync-badge err';
   });
 </script>
 </body>
