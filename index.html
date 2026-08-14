@@ -126,6 +126,7 @@
     gap:8px;
     margin-top:10px;
     flex-wrap:wrap;
+    align-items:center;
   }
   .paste-btn{
     padding:8px 16px;
@@ -144,6 +145,85 @@
     font-size:0.76rem;
     color:var(--ink-soft);
     margin-top:6px;
+  }
+  .bulk-preview{
+    margin-top:10px;
+    border:1px solid var(--accent-soft);
+    background:#F8FBFF;
+    border-radius:8px;
+    padding:10px 12px;
+  }
+  .bulk-preview-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:8px;
+    flex-wrap:wrap;
+  }
+  .bulk-preview-head span{
+    font-family:'Hind Siliguri', sans-serif;
+    font-weight:600;
+    font-size:0.86rem;
+    color:var(--accent);
+  }
+  .bulk-add-btn{
+    padding:7px 14px;
+    border-radius:7px;
+    border:none;
+    background:var(--accent);
+    color:var(--white);
+    font-family:'Hind Siliguri', sans-serif;
+    font-weight:600;
+    font-size:0.84rem;
+    cursor:pointer;
+  }
+  .bulk-add-btn:hover{ background:#1558B0; }
+  .bulk-add-btn:disabled{ background:#9AA0A6; cursor:default; }
+  .bulk-list{
+    max-height:180px;
+    overflow-y:auto;
+    font-family:'Roboto Mono', monospace;
+    font-size:0.8rem;
+    background:var(--white);
+    border-radius:6px;
+    border:1px solid var(--grid-line);
+  }
+  .bulk-list-row{
+    display:grid;
+    grid-template-columns:70px 1fr 60px;
+    gap:6px;
+    padding:5px 8px;
+    border-bottom:1px solid var(--grid-line);
+    color:var(--ink);
+  }
+  .bulk-list-row:last-child{ border-bottom:none; }
+  .bulk-list-row .bl-name{
+    font-family:'Hind Siliguri', sans-serif;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .bulk-list-row .bl-amt{ text-align:right; }
+  .paste-date{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 12px;
+    border-radius:8px;
+    border:1px solid var(--grid-line);
+    background:var(--sheet-bg);
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:0.86rem;
+    color:var(--ink-soft);
+  }
+  .paste-date input[type=date]{
+    border:none;
+    background:transparent;
+    font-family:'Roboto Mono', monospace;
+    font-size:0.86rem;
+    color:var(--ink);
+    outline:none;
   }
   .paste-upload{
     position:relative;
@@ -450,34 +530,40 @@
     display:block;
   }
   .modal-info{ padding:16px 18px; }
-  .modal-info-top{
-    display:flex;
-    align-items:baseline;
-    justify-content:space-between;
-    gap:10px;
-    margin-bottom:8px;
-  }
-  .modal-name{
-    font-family:'Hind Siliguri', sans-serif;
-    font-weight:700;
-    font-size:1.1rem;
-    color:var(--ink);
-  }
-  .modal-ip{
+  table.modal-fields{
+    width:100%;
+    border-collapse:collapse;
+    margin-bottom:10px;
     font-family:'Roboto Mono', monospace;
-    color:var(--ink-soft);
-    font-size:0.82rem;
   }
-  .modal-info-row{
-    display:flex;
-    justify-content:space-between;
-    gap:14px;
+  table.modal-fields tr{ border-bottom:1px solid var(--grid-line); }
+  table.modal-fields tr:last-child{ border-bottom:none; }
+  table.modal-fields td{
+    padding:7px 4px;
+    font-size:0.94rem;
+  }
+  table.modal-fields td.mf-label{
     color:var(--ink-soft);
-    font-size:0.9rem;
-    margin-bottom:6px;
     font-family:'Hind Siliguri', sans-serif;
+    font-weight:600;
+    width:70px;
+    white-space:nowrap;
   }
-  .modal-info-row b{ color:var(--ink); font-family:'Roboto Mono', monospace; }
+  table.modal-fields td.mf-value{
+    color:var(--ink);
+    font-weight:600;
+    text-align:right;
+  }
+  #modalName.mf-value{ font-family:'Hind Siliguri', sans-serif; text-align:right; }
+  details.modal-raw{ margin-top:4px; }
+  details.modal-raw summary{
+    cursor:pointer;
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:0.84rem;
+    color:var(--accent);
+    font-weight:600;
+    user-select:none;
+  }
   .modal-download{
     display:block;
     text-align:center;
@@ -520,6 +606,10 @@
     <textarea id="pasteInput" placeholder="এখানে আপনার বিলের লেখাগুলো পেস্ট করুন..."></textarea>
     <div class="paste-actions">
       <button type="button" class="paste-btn fill" id="pasteFillBtn">নিচের ফর্মে বসান</button>
+      <label class="paste-date" title="এই তারিখটি এন্ট্রিতে ব্যবহার হবে">
+        📅 তারিখ
+        <input type="date" id="pasteDateInput">
+      </label>
       <label class="paste-upload" id="pasteUploadBox">
         <span id="pasteUploadIcon">📷</span>
         <img id="pastePreviewImg">
@@ -529,7 +619,14 @@
       </label>
       <button type="button" class="paste-btn clear" id="pasteClearBtn">মুছুন</button>
     </div>
-    <p class="paste-hint">টিপ: "আইপি: ...", "নাম: ...", "টাকা: ...", "তারিখ: ..." এভাবে লিখলে সঠিকভাবে আলাদা হবে, নাহলে অনুমান করে ফর্ম পূরণ করা হবে।</p>
+    <p class="paste-hint">টিপ: "২৮" দিয়ে শুরু হওয়া সংখ্যা আইপি, ৪০০/৫০০/৬০০ এর মতো গোল সংখ্যা টাকা, আর লেখা অংশ নাম হিসেবে বসবে। "আইপি: ...", "নাম: ...", "টাকা: ...", "তারিখ: ..." লিখলে সরাসরি সঠিক ঘরে বসবে। অনেকগুলো বিল একসাথে পেস্ট করলে (আইপি-নাম-টাকা বারবার) নিজে থেকেই আলাদা আলাদা বিল হিসেবে ধরা হবে।</p>
+    <div class="bulk-preview" id="bulkPreview" style="display:none;">
+      <div class="bulk-preview-head">
+        <span id="bulkCountText">০ টি বিল পাওয়া গেছে</span>
+        <button type="button" class="bulk-add-btn" id="bulkAddBtn">সবগুলো যোগ করুন</button>
+      </div>
+      <div class="bulk-list" id="bulkList"></div>
+    </div>
   </div>
 
   <div class="toolbar">
@@ -615,16 +712,16 @@
   <div class="modal-card" onclick="event.stopPropagation()">
     <img id="modalImg" src="" style="display:none;">
     <div class="modal-info">
-      <div class="modal-info-top">
-        <span class="modal-name" id="modalName"></span>
-      </div>
-      <div class="modal-info-row">
-        <span>টাকা: <b id="modalAmount"></b></span>
-        <span>তারিখ: <b id="modalDate"></b></span>
-      </div>
-      <div class="modal-info-row" id="modalRemarkRow" style="display:block;">
-        <pre id="modalRemark" style="white-space:pre-wrap; word-break:break-word; font-family:'Hind Siliguri', sans-serif; font-size:0.9rem; color:var(--ink); margin:0; background:var(--sheet-bg); padding:10px 12px; border-radius:8px; max-height:280px; overflow-y:auto;"></pre>
-      </div>
+      <table class="modal-fields">
+        <tr><td class="mf-label">IP</td><td class="mf-value" id="modalIp"></td></tr>
+        <tr><td class="mf-label">নাম</td><td class="mf-value" id="modalName"></td></tr>
+        <tr><td class="mf-label">টাকা</td><td class="mf-value" id="modalAmount"></td></tr>
+        <tr><td class="mf-label">তারিখ</td><td class="mf-value" id="modalDate"></td></tr>
+      </table>
+      <details class="modal-raw" id="modalRemarkRow">
+        <summary>মূল লেখা দেখুন</summary>
+        <pre id="modalRemark" style="white-space:pre-wrap; word-break:break-word; font-family:'Hind Siliguri', sans-serif; font-size:0.86rem; color:var(--ink-soft); margin:8px 0 0; background:var(--sheet-bg); padding:10px 12px; border-radius:8px; max-height:220px; overflow-y:auto;"></pre>
+      </details>
       <a id="modalDownload" class="modal-download" download>⬇ ছবি ডাউনলোড করুন</a>
     </div>
   </div>
@@ -686,6 +783,7 @@
   const modalImg = document.getElementById('modalImg');
   const modalClose = document.getElementById('modalClose');
   const modalName = document.getElementById('modalName');
+  const modalIp = document.getElementById('modalIp');
   const modalAmount = document.getElementById('modalAmount');
   const modalDate = document.getElementById('modalDate');
   const modalRemark = document.getElementById('modalRemark');
@@ -700,13 +798,20 @@
   const pasteUploadLabel = document.getElementById('pasteUploadLabel');
   const pasteUploadBox = document.getElementById('pasteUploadBox');
   const pasteRemoveImg = document.getElementById('pasteRemoveImg');
+  const pasteDateInput = document.getElementById('pasteDateInput');
+  const bulkPreview = document.getElementById('bulkPreview');
+  const bulkCountText = document.getElementById('bulkCountText');
+  const bulkList = document.getElementById('bulkList');
+  const bulkAddBtn = document.getElementById('bulkAddBtn');
 
   let currentImageData = null;
   let allBills = [];
   let expandedDates = new Set();
   let defaultExpandDone = false;
 
-  dateInput.value = new Date().toISOString().slice(0,10);
+  const todayStr = new Date().toISOString().slice(0,10);
+  dateInput.value = todayStr;
+  pasteDateInput.value = todayStr;
 
   function setBillImage(dataUrl){
     currentImageData = dataUrl;
@@ -799,38 +904,51 @@
       }
     }
 
-    // 3) numbers — classify as টাকা (amount) vs আইপি (ip)
-    //    bill amounts are almost always round (multiples of 50/10, e.g. 400, 500, 600);
-    //    an IP/ID number like 28544 usually isn't, so the roundest number wins as amount
-    //    and any other number left over becomes the IP.
+    // 3) numbers — classify as আইপি (IP) vs টাকা (Tk)
+    //    "28" দিয়ে শুরু হওয়া সংখ্যা (যেমন খাতার আইডি নম্বর, ২৮১৫৮) সবসময় আইপি
+    //    ১০০ এর গুণিতক (৪০০, ৫০০, ৬০০, ১০০০...) সাধারণত বিলের টাকা
     if(!result.amount || !result.ip){
       const numMatches = [...remainingText.matchAll(/\d{1,7}/g)];
       if(numMatches.length){
-        let best = { score:-1, idx:-1 };
-        numMatches.forEach((mm, i)=>{
-          const v = Number(mm[0]);
-          const score = (v % 50 === 0) ? 3 : (v % 10 === 0 ? 2 : 1);
-          if(score > best.score){ best = { score, idx:i }; }
-        });
-        let amountMatch = null, ipMatch = null;
-        if(!result.amount && best.idx !== -1){
-          amountMatch = numMatches[best.idx];
-          result.amount = amountMatch[0];
-        }
+        let ipMatch = null, amountMatch = null;
+
+        // pass 1: numbers starting with "28" -> IP
         if(!result.ip){
-          const rest = numMatches.filter((mm,i)=> !amountMatch || i !== best.idx);
-          if(rest.length){
-            ipMatch = rest[0];
-            result.ip = ipMatch[0];
-          }
+          ipMatch = numMatches.find(mm => mm[0].startsWith('28') && mm[0].length >= 4) || null;
         }
+
+        // pass 2: round-hundred numbers (not already used as IP) -> টাকা
+        if(!result.amount){
+          amountMatch = numMatches.find(mm => mm !== ipMatch && Number(mm[0]) % 100 === 0) || null;
+        }
+
+        // fallback: if amount still unknown, pick the "roundest" remaining number
+        if(!result.amount && !amountMatch){
+          let best = { score:-1, match:null };
+          numMatches.forEach(mm=>{
+            if(mm === ipMatch) return;
+            const v = Number(mm[0]);
+            const score = (v % 50 === 0) ? 3 : (v % 10 === 0 ? 2 : 1);
+            if(score > best.score){ best = { score, match:mm }; }
+          });
+          amountMatch = best.match;
+        }
+
+        // fallback: if ip still unknown, take whatever number is left (not the amount)
+        if(!result.ip && !ipMatch){
+          ipMatch = numMatches.find(mm => mm !== amountMatch) || null;
+        }
+
+        if(!result.amount && amountMatch) result.amount = amountMatch[0];
+        if(!result.ip && ipMatch) result.ip = ipMatch[0];
+
         [amountMatch, ipMatch].forEach(mm=>{
           if(mm) remainingText = remainingText.replace(mm[0], ' ');
         });
       }
     }
 
-    // 4) name — whatever text (Bangla or English) is left after pulling out numbers/date
+    // 4) name — whatever text (Bangla or English words) is left after pulling out numbers/date
     if(!result.name){
       const nameText = remainingText
         .replace(/[:：\-–|,]+/g, ' ')
@@ -842,12 +960,91 @@
     return result;
   }
 
+  // ---- Bulk paste: many "আইপি নাম টাকা" entries in one block ----
+  // ID numbers always start with "28" in this khata's convention, so we anchor on that
+  // to reliably split a big pasted block into separate (ip, name, amount) entries.
+  function extractBulkEntries(text){
+    if(!text || !text.trim()) return [];
+    const cleaned = text.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim();
+    const entryRegex = /(28\d{2,5})\s+([^\d]+?)\s+(\d{2,6})(?=\s|$)/g;
+    const entries = [];
+    let m;
+    while((m = entryRegex.exec(cleaned)) !== null){
+      const name = m[2].replace(/[:：\-–|,]+/g,' ').replace(/\s+/g,' ').trim();
+      if(!name) continue;
+      entries.push({ ip:m[1], name, amount:Number(m[3]) });
+    }
+    return entries;
+  }
+
+  let bulkEntries = [];
+  let bulkPreviewTimer = null;
+
+  function updateBulkPreview(){
+    bulkEntries = extractBulkEntries(pasteInput.value);
+    if(bulkEntries.length >= 2){
+      bulkPreview.style.display = 'block';
+      bulkCountText.textContent = `${bulkEntries.length} টি বিল পাওয়া গেছে`;
+      bulkAddBtn.textContent = `সবগুলো (${bulkEntries.length}) যোগ করুন`;
+      bulkList.innerHTML = '';
+      bulkEntries.forEach(en=>{
+        const row = document.createElement('div');
+        row.className = 'bulk-list-row';
+        row.innerHTML = `<span>${escapeHtml(en.ip)}</span><span class="bl-name">${escapeHtml(en.name)}</span><span class="bl-amt">${formatAmount(en.amount)}</span>`;
+        bulkList.appendChild(row);
+      });
+      pasteFillBtn.style.display = 'none';
+    } else {
+      bulkPreview.style.display = 'none';
+      pasteFillBtn.style.display = 'inline-block';
+    }
+  }
+
+  async function addAllBulk(){
+    if(!bulkEntries.length) return;
+    const date = pasteDateInput.value || dateInput.value || todayStr;
+    const image = currentImageData || '';
+    bulkAddBtn.disabled = true;
+    const total = bulkEntries.length;
+    let done = 0;
+    try{
+      for(const en of bulkEntries){
+        await addBill({
+          ip: en.ip, name: en.name, amount: en.amount, date, remark:'',
+          image, createdAt: Date.now()
+        });
+        done++;
+        bulkAddBtn.textContent = `যোগ হচ্ছে... (${done}/${total})`;
+      }
+    }catch(err){
+      alert('সবগুলো যোগ করা যায়নি, ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+      console.error(err);
+    }
+    bulkAddBtn.disabled = false;
+    pasteInput.value = '';
+    setBillImage(null);
+    bulkEntries = [];
+    bulkPreview.style.display = 'none';
+    pasteFillBtn.style.display = 'inline-block';
+  }
+
+  bulkAddBtn.addEventListener('click', addAllBulk);
+  pasteInput.addEventListener('input', ()=>{
+    clearTimeout(bulkPreviewTimer);
+    bulkPreviewTimer = setTimeout(updateBulkPreview, 300);
+  });
+
   function applyParsedToForm(){
     const parsed = parseBillText(pasteInput.value);
     if(parsed.ip) ipInput.value = parsed.ip;
     if(parsed.name) nameInput.value = parsed.name;
     if(parsed.amount) amountInput.value = parsed.amount;
-    if(parsed.date) dateInput.value = parsed.date;
+    // paste box-এর তারিখ বক্সে কিছু বসানো থাকলে সেটাই অগ্রাধিকার পাবে, নাহলে টেক্সট থেকে পাওয়া তারিখ
+    if(pasteDateInput.value){
+      dateInput.value = pasteDateInput.value;
+    } else if(parsed.date){
+      dateInput.value = parsed.date;
+    }
     if(parsed.remark) remarkInput.value = parsed.remark;
     if(!parsed.name && !parsed.amount){
       alert('টেক্সট থেকে কিছু আলাদা করা যায়নি, দয়া করে ফর্মটি নিজে পূরণ করুন।');
@@ -856,11 +1053,20 @@
 
   pasteFillBtn.addEventListener('click', applyParsedToForm);
   pasteInput.addEventListener('paste', ()=>{
-    setTimeout(applyParsedToForm, 0);
+    setTimeout(()=>{
+      updateBulkPreview();
+      if(bulkEntries.length < 2){
+        applyParsedToForm();
+      }
+    }, 0);
   });
   pasteClearBtn.addEventListener('click', ()=>{
     pasteInput.value = '';
     setBillImage(null);
+    pasteDateInput.value = todayStr;
+    bulkEntries = [];
+    bulkPreview.style.display = 'none';
+    pasteFillBtn.style.display = 'inline-block';
     pasteInput.focus();
   });
 
@@ -873,7 +1079,7 @@
       return;
     }
     const ip = ipInput.value.trim() || String(allBills.length + 1);
-    const date = dateInput.value || new Date().toISOString().slice(0,10);
+    const date = dateInput.value || pasteDateInput.value || todayStr;
     const remark = remarkInput.value.trim();
 
     saveBtn.disabled = true;
@@ -924,13 +1130,18 @@
       modalImg.src = '';
       modalImg.style.display = 'none';
     }
+    modalIp.textContent = bill.ip ? bill.ip : '—';
     modalName.textContent = bill.name || '';
     modalAmount.textContent = formatAmount(bill.amount);
     modalDate.textContent = formatDateEnglish(bill.date);
 
-    const fullText = [bill.rawText, bill.remark].filter(Boolean).join('\n\n') || 'কোনো টেক্সট নেই।';
-    modalRemark.textContent = fullText;
-    modalRemarkRow.style.display = 'block';
+    const fullText = [bill.rawText, bill.remark].filter(Boolean).join('\n\n');
+    if(fullText){
+      modalRemark.textContent = fullText;
+      modalRemarkRow.style.display = 'block';
+    } else {
+      modalRemarkRow.style.display = 'none';
+    }
 
     const safeName = (bill.name || 'bill').replace(/[^a-zA-Z0-9_\-\u0980-\u09FF]+/g, '_');
     if(bill.image){
@@ -958,7 +1169,6 @@
     return escaped.replace(re, '<span class="hl">$1</span>');
   }
 
-  // when searching, cut the preview so the matched part is right at the front (not hidden off-screen)
   function snippetAroundMatch(str, query, maxLen){
     str = str || '';
     if(!query) return str;
@@ -979,7 +1189,6 @@
 
     let filtered = bills;
     if(q){
-      // "jekono kichu" search: match against every field, including pasted raw text
       filtered = filtered.filter(b=>
         (b.name||'').toLowerCase().includes(q) ||
         String(b.ip || '').toLowerCase().includes(q) ||
@@ -1000,7 +1209,6 @@
     const hasFilter = q || monthVal !== 'all';
     emptyState.style.display = (filtered.length === 0 && hasFilter) ? 'block' : 'none';
 
-    // group by date
     const groups = {};
     filtered.forEach(b=>{
       const key = b.date || 'তারিখ নেই';
@@ -1014,7 +1222,6 @@
       defaultExpandDone = true;
     }
 
-    // when actively filtering, expand all matching groups so results are visible
     if(hasFilter){
       dateKeys.forEach(k=> expandedDates.add(k));
     }
