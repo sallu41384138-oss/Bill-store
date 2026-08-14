@@ -446,7 +446,7 @@
     cursor:pointer;
     display:block;
   }
-  table.sheet td.del-cell{ text-align:center; }
+  table.sheet td.del-cell{ text-align:center; white-space:nowrap; }
   table.sheet td.del-cell button{
     width:24px;height:24px;
     border-radius:50%;
@@ -461,6 +461,41 @@
     background:var(--red);
     color:var(--white);
   }
+  table.sheet td.del-cell button.edit:hover{
+    background:var(--accent);
+    color:var(--white);
+  }
+  table.modal-fields td.mf-value input{
+    width:100%;
+    text-align:right;
+    border:1px solid var(--grid-line);
+    border-radius:6px;
+    padding:6px 8px;
+    font-family:'Roboto Mono', monospace;
+    font-size:0.9rem;
+    color:var(--ink);
+    outline:none;
+    background:var(--white);
+  }
+  table.modal-fields td.mf-value input:focus{ border-color:var(--accent); }
+  table.modal-fields td.mf-value input#editName{ font-family:'Hind Siliguri', sans-serif; }
+  .modal-save-btn{
+    display:block;
+    width:100%;
+    text-align:center;
+    margin-top:12px;
+    background:var(--accent);
+    color:var(--white);
+    border:none;
+    padding:10px;
+    border-radius:8px;
+    font-family:'Hind Siliguri', sans-serif;
+    font-weight:600;
+    font-size:0.92rem;
+    cursor:pointer;
+  }
+  .modal-save-btn:hover{ background:#1558B0; }
+  .modal-save-btn:disabled{ background:#9AA0A6; cursor:default; }
 
   tr.entry-row{ background:var(--accent-soft); }
   tr.entry-row td{ padding:5px 6px; }
@@ -752,6 +787,21 @@
         <pre id="modalRemark" style="white-space:pre-wrap; word-break:break-word; font-family:'Hind Siliguri', sans-serif; font-size:0.86rem; color:var(--ink-soft); margin:8px 0 0; background:var(--sheet-bg); padding:10px 12px; border-radius:8px; max-height:220px; overflow-y:auto;"></pre>
       </details>
       <a id="modalDownload" class="modal-download" download>⬇ ছবি ডাউনলোড করুন</a>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="editModal">
+  <button class="modal-close" id="editModalClose">&times;</button>
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-info">
+      <table class="modal-fields">
+        <tr><td class="mf-label">IP</td><td class="mf-value"><input type="text" id="editIp"></td></tr>
+        <tr><td class="mf-label">নাম</td><td class="mf-value"><input type="text" id="editName"></td></tr>
+        <tr><td class="mf-label">টাকা</td><td class="mf-value"><input type="number" id="editAmount"></td></tr>
+        <tr><td class="mf-label">তারিখ</td><td class="mf-value"><input type="date" id="editDate"></td></tr>
+      </table>
+      <button type="button" class="modal-save-btn" id="editSaveBtn">সংরক্ষণ করুন</button>
     </div>
   </div>
 </div>
@@ -1214,6 +1264,49 @@
     imgModal.classList.add('open');
   }
 
+  // ---- Edit modal (IP, নাম, টাকা, তারিখ সম্পাদনা) ----
+  const editModal = document.getElementById('editModal');
+  const editModalClose = document.getElementById('editModalClose');
+  const editIp = document.getElementById('editIp');
+  const editName = document.getElementById('editName');
+  const editAmount = document.getElementById('editAmount');
+  const editDate = document.getElementById('editDate');
+  const editSaveBtn = document.getElementById('editSaveBtn');
+  let editingBillId = null;
+
+  function openEditModal(bill){
+    editingBillId = bill.id;
+    editIp.value = bill.ip || '';
+    editName.value = bill.name || '';
+    editAmount.value = (bill.amount === null || bill.amount === undefined || bill.amount === '') ? '' : bill.amount;
+    editDate.value = bill.date || '';
+    editModal.classList.add('open');
+  }
+
+  editModalClose.addEventListener('click', ()=> editModal.classList.remove('open'));
+  editModal.addEventListener('click', ()=> editModal.classList.remove('open'));
+
+  editSaveBtn.addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    if(!editingBillId) return;
+    const updated = {
+      ip: editIp.value.trim(),
+      name: editName.value.trim(),
+      amount: editAmount.value === '' ? 0 : Number(editAmount.value),
+      date: editDate.value
+    };
+    editSaveBtn.disabled = true;
+    try{
+      await billsRef.child(editingBillId).update(updated);
+      editModal.classList.remove('open');
+      editingBillId = null;
+    }catch(err){
+      alert('সংরক্ষণ করা যায়নি, ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+      console.error(err);
+    }
+    editSaveBtn.disabled = false;
+  });
+
   function escapeHtml(str){
     const div = document.createElement('div');
     div.textContent = str;
@@ -1390,13 +1483,17 @@
           <td class="amount-cell">${highlightHtml(formatAmount(bill.amount), q)}</td>
           <td class="date-cell">${highlightHtml(formatDateEnglish(bill.date), q)}</td>
           ${photoCell}
-          <td class="del-cell"><button class="del" data-id="${bill.id}" title="মুছে ফেলুন">&times;</button></td>
+          <td class="del-cell"><button class="edit" data-id="${bill.id}" title="সম্পাদনা করুন">✎</button><button class="del" data-id="${bill.id}" title="মুছে ফেলুন">&times;</button></td>
         `;
         row.querySelector('.desc-cell').addEventListener('click', ()=> openBillModal(bill));
         const img = row.querySelector('.photo-cell img');
         if(img){
           img.addEventListener('click', ()=> openBillModal(bill));
         }
+        row.querySelector('.edit').addEventListener('click', (e)=>{
+          e.stopPropagation();
+          openEditModal(bill);
+        });
         row.querySelector('.del').addEventListener('click', async (e)=>{
           e.stopPropagation();
           if(confirm('এই বিলটি মুছে ফেলতে চান?')){
