@@ -830,6 +830,7 @@
   let allBillPhotos = [];
   let expandedDates = new Set();
   let defaultExpandDone = false;
+  monthSelect.value = String(new Date().getMonth());
 
   const todayStr = new Date().toISOString().slice(0,10);
   dateInput.value = todayStr;
@@ -1242,11 +1243,6 @@
       groups[key].push(b);
     });
     const dateKeys = Object.keys(groups).sort((a,b)=> new Date(b) - new Date(a));
-
-    if(!defaultExpandDone && dateKeys.length){
-      expandedDates.add(dateKeys[0]);
-      defaultExpandDone = true;
-    }
 
     if(hasFilter){
       dateKeys.forEach(k=> expandedDates.add(k));
