@@ -687,7 +687,7 @@
         <img id="pastePreviewImg">
         <span id="pasteUploadLabel">ছবি যুক্ত করুন</span>
         <span class="remove-img" id="pasteRemoveImg" title="ছবি সরান">&times;</span>
-        <input type="file" accept="image/*" id="pasteFileInput">
+        <input type="file" accept="image/*" id="pasteFileInput" multiple>
       </label>
       <button type="button" class="paste-btn clear" id="pasteClearBtn">মুছুন</button>
     </div>
@@ -759,7 +759,7 @@
             <label class="mini-upload" id="uploadBox">
               <span id="uploadIcon">📷</span>
               <img id="previewImg">
-              <input type="file" accept="image/*" id="fileInput">
+              <input type="file" accept="image/*" id="fileInput" multiple>
             </label>
           </td>
           <td><input type="text" id="remarkInput" placeholder="মন্তব্য"></td>
@@ -921,6 +921,7 @@
   const bulkAddBtn = document.getElementById('bulkAddBtn');
 
   let currentImageData = null;
+  let currentImageDataList = [];
   let allBills = [];
   let allBillPhotos = [];
   let expandedDates = new Set();
@@ -932,17 +933,23 @@
   dateInput.value = todayStr;
   pasteDateInput.value = todayStr;
 
-  function setBillImage(dataUrl){
-    currentImageData = dataUrl;
-    if(dataUrl){
-      previewImg.src = dataUrl;
+  function setBillImage(data){
+    // data হতে পারে null, একটা dataURL, অথবা একাধিক dataURL-এর array
+    let list = [];
+    if(Array.isArray(data)) list = data.filter(Boolean);
+    else if(data) list = [data];
+    currentImageDataList = list;
+    currentImageData = list[0] || null;
+
+    if(list.length){
+      previewImg.src = list[0];
       previewImg.style.display = 'block';
       uploadIcon.style.display = 'none';
 
-      pastePreviewImg.src = dataUrl;
+      pastePreviewImg.src = list[0];
       pastePreviewImg.style.display = 'block';
       pasteUploadIcon.style.display = 'none';
-      pasteUploadLabel.textContent = 'ছবি যুক্ত হয়েছে';
+      pasteUploadLabel.textContent = list.length > 1 ? `ছবি যুক্ত হয়েছে (${list.length}টি)` : 'ছবি যুক্ত হয়েছে';
       pasteUploadBox.classList.add('has-img');
       pasteRemoveImg.style.display = 'inline';
     } else {
@@ -961,15 +968,20 @@
     }
   }
 
-  function readImageFile(file){
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=> setBillImage(ev.target.result);
-    reader.readAsDataURL(file);
+  function readImageFiles(fileList){
+    const files = Array.from(fileList || []).filter(f=> f && f.type && f.type.startsWith('image/'));
+    if(!files.length) return;
+    Promise.all(files.map(file=> new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = (ev)=> resolve(ev.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }))).then(dataUrls=> setBillImage(dataUrls))
+      .catch(err=> console.error('image read failed:', err));
   }
 
-  fileInput.addEventListener('change', (e)=> readImageFile(e.target.files[0]));
-  pasteFileInput.addEventListener('change', (e)=> readImageFile(e.target.files[0]));
+  fileInput.addEventListener('change', (e)=> readImageFiles(e.target.files));
+  pasteFileInput.addEventListener('change', (e)=> readImageFiles(e.target.files));
   pasteRemoveImg.addEventListener('click', (e)=>{
     e.preventDefault();
     e.stopPropagation();
@@ -1122,7 +1134,7 @@
   async function addAllBulk(){
     if(!bulkEntries.length) return;
     const date = pasteDateInput.value || dateInput.value || todayStr;
-    const image = currentImageData || '';
+    const images = currentImageDataList.slice();
     bulkAddBtn.disabled = true;
     const total = bulkEntries.length;
     let done = 0;
@@ -1135,8 +1147,8 @@
         done++;
         bulkAddBtn.textContent = `যোগ হচ্ছে... (${done}/${total})`;
       }
-      // ছবিটা প্রতিটা আইপির সাথে আলাদা আলাদা না জুড়ে, একবারই তারিখের সাথে সেভ হবে
-      if(image){
+      // ছবিগুলো প্রতিটা আইপির সাথে আলাদা আলাদা না জুড়ে, তারিখের সাথে সেভ হবে
+      for(const image of images){
         await addBillPhoto({ date, image, createdAt: Date.now() });
       }
     }catch(err){
@@ -1204,6 +1216,7 @@
     const ip = ipInput.value.trim() || String(allBills.length + 1);
     const date = dateInput.value || pasteDateInput.value || todayStr;
     const remark = remarkInput.value.trim();
+    const extraImages = currentImageDataList.slice(1);
 
     saveBtn.disabled = true;
     try{
@@ -1213,6 +1226,9 @@
         image: currentImageData || '',
         createdAt: Date.now()
       });
+      for(const image of extraImages){
+        await addBillPhoto({ date, image, createdAt: Date.now() });
+      }
       expandedDates.add(date);
     }catch(err){
       alert('সংরক্ষণ করা যায়নি, ইন্টারনেট সংযোগ পরীক্ষা করুন।');
