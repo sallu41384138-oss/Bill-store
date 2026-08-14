@@ -291,6 +291,30 @@
     cursor:pointer;
   }
   #monthSelect:focus{border-color:var(--accent);}
+  .multi-delete-btn{
+    padding:9px 14px;
+    border:1px solid var(--red);
+    border-radius:8px;
+    background:var(--white);
+    color:var(--red);
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:0.9rem;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background .15s;
+  }
+  .multi-delete-btn:hover{ background:#FCE8E6; }
+  .row-chk, .header-chk{
+    width:16px;
+    height:16px;
+    cursor:pointer;
+    vertical-align:middle;
+  }
+  td.chk-cell{
+    text-align:center;
+    width:28px;
+  }
 
   .empty{
     text-align:center;
@@ -631,6 +655,7 @@
 
   <div class="toolbar">
     <input type="text" id="searchInput" placeholder="নাম, আইপি, টাকা, তারিখ বা মন্তব্য দিয়ে খুঁজুন...">
+    <button type="button" id="multiDeleteBtn" class="multi-delete-btn" style="display:none;">নির্বাচিত মুছুন (<span id="multiDeleteCount">0</span>)</button>
     <select id="monthSelect">
       <option value="all">সব মাস</option>
       <option value="0">জানুয়ারি</option>
@@ -652,6 +677,7 @@
     <table class="sheet">
       <thead>
         <tr class="col-letters">
+          <th class="corner chk-col"></th>
           <th class="corner rownum-col"></th>
           <th>A</th>
           <th>B</th>
@@ -662,6 +688,7 @@
           <th></th>
         </tr>
         <tr class="field-header">
+          <th class="chk-col"><input type="checkbox" id="headerChk" class="header-chk" title="সব নির্বাচন করুন"></th>
           <th class="rownum-col">#</th>
           <th>IP</th>
           <th>Name</th>
@@ -674,6 +701,7 @@
       </thead>
       <tbody>
         <tr class="entry-row">
+          <td class="chk-cell"></td>
           <td class="rownum">+</td>
           <td><input type="text" id="ipInput" placeholder="IP"></td>
           <td><input type="text" id="nameInput" placeholder="নাম"></td>
@@ -693,6 +721,7 @@
       <tbody class="entries" id="billGrid"></tbody>
       <tfoot>
         <tr>
+          <td class="chk-cell"></td>
           <td class="rownum">Σ</td>
           <td colspan="2">মোট</td>
           <td class="amount-cell" id="totalAmount">0</td>
@@ -800,6 +829,9 @@
   const searchInput = document.getElementById('searchInput');
   const monthSelect = document.getElementById('monthSelect');
   const countBadge = document.getElementById('countBadge');
+  const multiDeleteBtn = document.getElementById('multiDeleteBtn');
+  const multiDeleteCount = document.getElementById('multiDeleteCount');
+  const headerChk = document.getElementById('headerChk');
   const imgModal = document.getElementById('imgModal');
   const modalImg = document.getElementById('modalImg');
   const modalClose = document.getElementById('modalClose');
@@ -830,6 +862,7 @@
   let allBillPhotos = [];
   let expandedDates = new Set();
   let defaultExpandDone = false;
+  let selectedIds = new Set();
   monthSelect.value = String(new Date().getMonth());
 
   const todayStr = new Date().toISOString().slice(0,10);
@@ -1210,6 +1243,48 @@
     return out;
   }
 
+  function updateMultiDeleteUI(){
+    const n = selectedIds.size;
+    multiDeleteCount.textContent = n;
+    multiDeleteBtn.style.display = n > 0 ? 'inline-block' : 'none';
+    const visibleChks = billGrid.querySelectorAll('.row-chk');
+    if(visibleChks.length){
+      const allChecked = Array.from(visibleChks).every(c=> c.checked);
+      headerChk.checked = allChecked;
+      headerChk.indeterminate = !allChecked && Array.from(visibleChks).some(c=> c.checked);
+    }else{
+      headerChk.checked = false;
+      headerChk.indeterminate = false;
+    }
+  }
+
+  headerChk.addEventListener('change', ()=>{
+    const checked = headerChk.checked;
+    billGrid.querySelectorAll('.row-chk').forEach(c=>{
+      const id = c.getAttribute('data-id');
+      c.checked = checked;
+      if(checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+    });
+    updateMultiDeleteUI();
+  });
+
+  multiDeleteBtn.addEventListener('click', async ()=>{
+    const n = selectedIds.size;
+    if(!n) return;
+    if(!confirm(`নির্বাচিত ${n} টি বিল মুছে ফেলতে চান?`)) return;
+    multiDeleteBtn.disabled = true;
+    try{
+      await Promise.all(Array.from(selectedIds).map(id=> deleteBill(id)));
+      selectedIds.clear();
+    }catch(err){
+      alert('মুছে ফেলা যায়নি, ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+      console.error(err);
+    }
+    multiDeleteBtn.disabled = false;
+    updateMultiDeleteUI();
+  });
+
   function render(bills){
     const q = searchInput.value.trim().toLowerCase();
     const monthVal = monthSelect.value;
@@ -1244,7 +1319,7 @@
     });
     const dateKeys = Object.keys(groups).sort((a,b)=> new Date(b) - new Date(a));
 
-    if(hasFilter){
+    if(q){
       dateKeys.forEach(k=> expandedDates.add(k));
     }
 
@@ -1259,7 +1334,7 @@
       const headerRow = document.createElement('tr');
       headerRow.className = 'date-group-row' + (isOpen ? ' open' : '');
       headerRow.innerHTML = `
-        <td colspan="8">
+        <td colspan="9">
           <span class="arrow">▶</span>${escapeHtml(formatDateEnglish(dateKey) || dateKey)}
           <span class="group-count">(${items.length} টি বিল)</span>
           <span class="group-sum">${formatAmount(groupSum)}</span>
@@ -1278,6 +1353,7 @@
         const photoRow = document.createElement('tr');
         photoRow.className = 'item-row' + (isOpen ? '' : ' hidden-row');
         photoRow.innerHTML = `
+          <td class="chk-cell"></td>
           <td class="rownum">🖼</td>
           <td class="desc-cell" colspan="3" title="বিস্তারিত দেখতে ক্লিক করুন">বিলের ছবি</td>
           <td class="amount-cell">—</td>
@@ -1308,6 +1384,7 @@
           : [bill.ip, bill.name, bill.remark].filter(Boolean).join(' — ');
         const descDisplay = q ? snippetAroundMatch(descSource, q, 60) : descSource;
         row.innerHTML = `
+          <td class="chk-cell"><input type="checkbox" class="row-chk" data-id="${bill.id}" ${selectedIds.has(bill.id) ? 'checked' : ''}></td>
           <td class="rownum">${idx+1}</td>
           <td class="desc-cell" colspan="3" title="বিস্তারিত দেখতে ক্লিক করুন">${highlightHtml(descDisplay, q)}</td>
           <td class="amount-cell">${highlightHtml(formatAmount(bill.amount), q)}</td>
@@ -1326,9 +1403,21 @@
             await deleteBill(bill.id);
           }
         });
+        row.querySelector('.row-chk').addEventListener('click', (e)=> e.stopPropagation());
+        row.querySelector('.row-chk').addEventListener('change', (e)=>{
+          const id = e.target.getAttribute('data-id');
+          if(e.target.checked) selectedIds.add(id);
+          else selectedIds.delete(id);
+          updateMultiDeleteUI();
+        });
         billGrid.appendChild(row);
       });
     });
+
+    // যেসব বিল আর তালিকায় নেই (মুছে ফেলা হয়েছে বা ফিল্টারে বাদ পড়েছে) সেগুলোর নির্বাচন বাদ দাও
+    const visibleIds = new Set(filtered.map(b=> b.id));
+    Array.from(selectedIds).forEach(id=>{ if(!visibleIds.has(id)) selectedIds.delete(id); });
+    updateMultiDeleteUI();
 
     totalAmount.textContent = formatAmount(grandSum);
   }
