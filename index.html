@@ -741,6 +741,7 @@
   firebase.initializeApp(firebaseConfig);
   const fdb = firebase.database();
   const billsRef = fdb.ref('bills');
+  const billPhotosRef = fdb.ref('billPhotos');
 
   // ---- Telegram notification setup ----
   const TELEGRAM_BOT_TOKEN = '8902993837:AAEcApvYlPYoUWyMUdPCYHdt6Z_psHV7MnE';
@@ -760,6 +761,14 @@
   }
   function deleteBill(id){
     return billsRef.child(id).remove();
+  }
+
+  // বিলের ছবি আলাদাভাবে সেভ হয় — কোনো নির্দিষ্ট আইপির সাথে জড়ানো থাকে না, শুধু তারিখের সাথে
+  function addBillPhoto(photo){
+    return billPhotosRef.push(photo);
+  }
+  function deleteBillPhoto(id){
+    return billPhotosRef.child(id).remove();
   }
 
   function pad2(n){ return String(n).padStart(2,'0'); }
@@ -818,6 +827,7 @@
 
   let currentImageData = null;
   let allBills = [];
+  let allBillPhotos = [];
   let expandedDates = new Set();
   let defaultExpandDone = false;
 
@@ -1023,10 +1033,14 @@
       for(const en of bulkEntries){
         await addBill({
           ip: en.ip, name: en.name, amount: en.amount, date, remark:'',
-          image, createdAt: Date.now()
+          createdAt: Date.now()
         });
         done++;
         bulkAddBtn.textContent = `যোগ হচ্ছে... (${done}/${total})`;
+      }
+      // ছবিটা প্রতিটা আইপির সাথে আলাদা আলাদা না জুড়ে, একবারই তারিখের সাথে সেভ হবে
+      if(image){
+        await addBillPhoto({ date, image, createdAt: Date.now() });
       }
     }catch(err){
       alert('সবগুলো যোগ করা যায়নি, ইন্টারনেট সংযোগ পরীক্ষা করুন।');
@@ -1144,7 +1158,7 @@
     }
     modalIp.textContent = bill.ip ? bill.ip : '—';
     modalName.textContent = bill.name || '';
-    modalAmount.textContent = formatAmount(bill.amount);
+    modalAmount.textContent = (bill.amount === null || bill.amount === undefined || bill.amount === '') ? '—' : formatAmount(bill.amount);
     modalDate.textContent = formatDateEnglish(bill.date);
 
     const fullText = [bill.rawText, bill.remark].filter(Boolean).join('\n\n');
@@ -1262,6 +1276,31 @@
       });
       billGrid.appendChild(headerRow);
 
+      // এই তারিখের সাথে যুক্ত বিলের ছবি — কোনো নির্দিষ্ট আইপি ছাড়া, শুধু ছবি + তারিখ
+      const datePhotos = allBillPhotos.filter(p=> p.date === dateKey);
+      datePhotos.forEach(photo=>{
+        const photoRow = document.createElement('tr');
+        photoRow.className = 'item-row' + (isOpen ? '' : ' hidden-row');
+        photoRow.innerHTML = `
+          <td class="rownum">🖼</td>
+          <td class="desc-cell" colspan="3" title="বিস্তারিত দেখতে ক্লিক করুন">বিলের ছবি</td>
+          <td class="amount-cell">—</td>
+          <td class="date-cell">${escapeHtml(formatDateEnglish(photo.date))}</td>
+          <td class="photo-cell"><img src="${photo.image}"></td>
+          <td class="del-cell"><button class="del" data-id="${photo.id}" title="মুছে ফেলুন">&times;</button></td>
+        `;
+        const openPhoto = ()=> openBillModal({ ip:'', name:'বিলের ছবি', amount:null, date:photo.date, image:photo.image });
+        photoRow.querySelector('.desc-cell').addEventListener('click', openPhoto);
+        photoRow.querySelector('.photo-cell img').addEventListener('click', openPhoto);
+        photoRow.querySelector('.del').addEventListener('click', async (e)=>{
+          e.stopPropagation();
+          if(confirm('এই ছবিটি মুছে ফেলতে চান?')){
+            await deleteBillPhoto(photo.id);
+          }
+        });
+        billGrid.appendChild(photoRow);
+      });
+
       items.forEach((bill, idx)=>{
         const row = document.createElement('tr');
         row.className = 'item-row' + (isOpen ? '' : ' hidden-row');
@@ -1340,6 +1379,14 @@
     countBadge.textContent = `${allBills.length} টা বিল`;
     render(allBills);
     saveToCache(allBills);
+  }, (err)=>{
+    console.error(err);
+  });
+
+  billPhotosRef.on('value', (snapshot)=>{
+    const val = snapshot.val() || {};
+    allBillPhotos = Object.keys(val).map(key=> ({ id:key, ...val[key] }));
+    render(allBills);
   }, (err)=>{
     console.error(err);
   });
