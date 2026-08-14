@@ -1298,12 +1298,40 @@
     totalAmount.textContent = formatAmount(grandSum);
   }
 
+  // ---- Local cache so the page shows bills instantly, before Firebase finishes syncing ----
+  const CACHE_KEY = 'billstore_cache_v1';
+
+  (function loadFromCache(){
+    try{
+      const cached = localStorage.getItem(CACHE_KEY);
+      if(cached){
+        const parsed = JSON.parse(cached);
+        if(Array.isArray(parsed) && parsed.length){
+          allBills = parsed;
+          countBadge.textContent = `${allBills.length} টা বিল`;
+          render(allBills);
+        }
+      }
+    }catch(e){
+      console.error('cache load failed:', e);
+    }
+  })();
+
+  function saveToCache(bills){
+    try{
+      localStorage.setItem(CACHE_KEY, JSON.stringify(bills));
+    }catch(e){
+      console.error('cache save failed:', e);
+    }
+  }
+
   // ---- Realtime sync from Firebase ----
   billsRef.on('value', (snapshot)=>{
     const val = snapshot.val() || {};
     allBills = Object.keys(val).map(key=> ({ id:key, ...val[key] }));
     countBadge.textContent = `${allBills.length} টা বিল`;
     render(allBills);
+    saveToCache(allBills);
   }, (err)=>{
     console.error(err);
   });
