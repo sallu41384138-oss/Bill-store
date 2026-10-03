@@ -69,18 +69,6 @@
     vertical-align:middle;
     font-family:'Roboto Mono', monospace;
   }
-  .sync-badge{
-    display:inline-block;
-    font-size:0.72rem;
-    font-weight:600;
-    padding:3px 10px;
-    border-radius:20px;
-    margin-left:6px;
-    vertical-align:middle;
-  }
-  .sync-badge.ok{ background:#E6F4EA; color:#137333; }
-  .sync-badge.err{ background:#FCE8E6; color:#C5221F; }
-  .sync-badge.wait{ background:#FEF7E0; color:#B06000; }
   .tagline{
     margin:2px 0 0;
     color:var(--ink-soft);
@@ -181,30 +169,75 @@
   .bulk-add-btn:hover{ background:#1558B0; }
   .bulk-add-btn:disabled{ background:#9AA0A6; cursor:default; }
   .bulk-list{
-    max-height:180px;
+    max-height:220px;
     overflow-y:auto;
-    font-family:'Roboto Mono', monospace;
-    font-size:0.8rem;
     background:var(--white);
     border-radius:6px;
     border:1px solid var(--grid-line);
   }
+
+  /* ---- Bulk preview rows ---- */
   .bulk-list-row{
     display:grid;
-    grid-template-columns:70px 1fr 60px;
+    grid-template-columns:70px 1fr 70px;
     gap:6px;
-    padding:5px 8px;
+    padding:6px 8px;
     border-bottom:1px solid var(--grid-line);
     color:var(--ink);
+    align-items:center;
+    font-family:'Roboto Mono', monospace;
+    font-size:0.8rem;
   }
   .bulk-list-row:last-child{ border-bottom:none; }
-  .bulk-list-row .bl-name{
+  .bulk-list-row.bulk-list-row-ok{        background:#E6F4EA; }
+  .bulk-list-row.bulk-list-row-filled{    background:#F3E8FD; }
+  .bulk-list-row.bulk-list-row-corrected{ background:#E8F0FE; }
+  .bulk-list-row.bulk-list-row-new{       background:#FEF7E0; }
+
+  .bulk-list-row .bl-ip{
+    font-family:'Roboto Mono', monospace;
+    font-weight:600;
+    font-size:0.78rem;
+  }
+  .bulk-list-row .bl-name-input{
     font-family:'Hind Siliguri', sans-serif;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    font-size:0.82rem;
+    border:1px solid var(--grid-line);
+    border-radius:5px;
+    padding:3px 6px;
+    background:var(--white);
+    color:var(--ink);
+    outline:none;
+    width:100%;
+  }
+  .bulk-list-row .bl-name-input:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent-soft);
+  }
+  .bulk-list-row .bl-amt{
+    font-family:'Roboto Mono', monospace;
+    text-align:right;
+    font-size:0.8rem;
+  }
+  .bl-badge{
+    display:inline-block;
+    font-family:'Hind Siliguri', sans-serif;
+    font-size:0.68rem;
+    font-weight:600;
+    padding:2px 7px;
+    border-radius:12px;
     white-space:nowrap;
   }
-  .bulk-list-row .bl-amt{ text-align:right; }
+  .bl-badge.ok{  background:#137333; color:#fff; }
+  .bl-badge.fill{ background:#7B1FA2; color:#fff; }
+  .bl-badge.fix{ background:#1A73E8; color:#fff; }
+  .bl-badge.new{ background:#B06000; color:#fff; }
+  .bulk-list-row .bl-status{
+    grid-column: 1 / -1;
+    text-align:right;
+    margin-top:2px;
+  }
+
   .paste-date{
     display:inline-flex;
     align-items:center;
@@ -691,7 +724,7 @@
       </label>
       <button type="button" class="paste-btn clear" id="pasteClearBtn">মুছুন</button>
     </div>
-    <p class="paste-hint">টিপ: "২৮" দিয়ে শুরু হওয়া সংখ্যা আইপি, ৪০০/৫০০/৬০০ এর মতো গোল সংখ্যা টাকা, আর লেখা অংশ নাম হিসেবে বসবে। "আইপি: ...", "নাম: ...", "টাকা: ...", "তারিখ: ..." লিখলে সরাসরি সঠিক ঘরে বসবে। অনেকগুলো বিল একসাথে পেস্ট করলে (আইপি-নাম-টাকা বারবার) নিজে থেকেই আলাদা আলাদা বিল হিসেবে ধরা হবে।</p>
+    <p class="paste-hint">টিপ: প্রতিটি লাইনে <b>IP নাম টাকা</b> ফরম্যাটে লিখুন বা পেস্ট করুন। IP সবসময় "28" দিয়ে শুরু। নাম আগের বিলের সাথে মিললে অটো-বসে যাবে। নাম খালি রাখলেও IP থেকে নাম চলে আসবে।</p>
     <div class="bulk-preview" id="bulkPreview" style="display:none;">
       <div class="bulk-preview-head">
         <span id="bulkCountText">০ টি বিল পাওয়া গেছে</span>
@@ -854,8 +887,6 @@
   function deleteBill(id){
     return billsRef.child(id).remove();
   }
-
-  // বিলের ছবি আলাদাভাবে সেভ হয় — কোনো নির্দিষ্ট আইপির সাথে জড়ানো থাকে না, শুধু তারিখের সাথে
   function addBillPhoto(photo){
     return billPhotosRef.push(photo);
   }
@@ -925,7 +956,6 @@
   let allBills = [];
   let allBillPhotos = [];
   let expandedDates = new Set();
-  let defaultExpandDone = false;
   let selectedIds = new Set();
   monthSelect.value = String(new Date().getMonth());
 
@@ -934,7 +964,6 @@
   pasteDateInput.value = todayStr;
 
   function setBillImage(data){
-    // data হতে পারে null, একটা dataURL, অথবা একাধিক dataURL-এর array
     let list = [];
     if(Array.isArray(data)) list = data.filter(Boolean);
     else if(data) list = [data];
@@ -988,31 +1017,36 @@
     setBillImage(null);
   });
 
-  // ---- আগের বিল থেকে IP → নাম খোঁজা (auto-fill) ----
+  // ---- আগের বিল থেকে IP → নাম খোঁজা ----
   function getPreviousNameByIp(ip){
     if(!ip) return '';
     const trimmed = String(ip).trim();
     if(!trimmed) return '';
-    // exact IP match — সর্বশেষ entry-এর নাম আগে দেখাবে
     const matches = allBills
       .filter(b => String(b.ip || '').trim() === trimmed && b.name)
       .sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
     return matches.length ? matches[0].name : '';
   }
+  function normName(s){
+    return String(s||'').replace(/\s+/g,'').toLowerCase();
+  }
 
-  // IP ফিল্ডে টাইপ করার সাথে সাথে আগের নাম auto-fill হবে
+  // IP ফিল্ডে টাইপ করলে আগের নাম auto-fill (খালি/ভুল হলেও ঠিক হয়ে যাবে)
   function autoFillNameFromIp(){
     const ip = ipInput.value.trim();
     if(!ip) return;
     const prevName = getPreviousNameByIp(ip);
     if(prevName){
-      nameInput.value = prevName;
+      // নাম খালি থাকলে বা আগের নামের সাথে না মিললে — আগের নামটাই বসাও
+      if(!nameInput.value.trim() || normName(nameInput.value) !== normName(prevName)){
+        nameInput.value = prevName;
+      }
     }
   }
   ipInput.addEventListener('input', autoFillNameFromIp);
   ipInput.addEventListener('blur', autoFillNameFromIp);
 
-  // ---- Paste box: parse pasted bill text into the form fields ----
+  // ---- Parse text for single entry ----
   function parseBillText(text){
     const result = { ip:'', name:'', amount:'', date:'', remark:'' };
     if(!text || !text.trim()) return result;
@@ -1020,30 +1054,17 @@
     const lines = text.split(/\n+/).map(l=>l.trim()).filter(Boolean);
     const used = new Set();
 
-    // 1) explicit labeled lines (আইপি:, নাম:, টাকা:, তারিখ:, মন্তব্য:)
     lines.forEach((line, idx)=>{
       let m;
-      if((m = line.match(/^(?:আইপি|ip|আইডি|id)\s*[:：\-–]\s*(.+)$/i))){
-        result.ip = m[1].trim(); used.add(idx); return;
-      }
-      if((m = line.match(/^(?:নাম|name)\s*[:：\-–]\s*(.+)$/i))){
-        result.name = m[1].trim(); used.add(idx); return;
-      }
-      if((m = line.match(/^(?:টাকা|taka|tk|amount|পরিমাণ)\s*[:：\-–]\s*(.+)$/i))){
-        result.amount = m[1].replace(/[^\d.]/g,''); used.add(idx); return;
-      }
-      if((m = line.match(/^(?:তারিখ|date)\s*[:：\-–]\s*(.+)$/i))){
-        result.date = m[1].trim(); used.add(idx); return;
-      }
-      if((m = line.match(/^(?:মন্তব্য|remark|note)\s*[:：\-–]\s*(.+)$/i))){
-        result.remark = m[1].trim(); used.add(idx); return;
-      }
+      if((m = line.match(/^(?:আইপি|ip|আইডি|id)\s*[:：\-–]\s*(.+)$/i))){ result.ip = m[1].trim(); used.add(idx); return; }
+      if((m = line.match(/^(?:নাম|name)\s*[:：\-–]\s*(.+)$/i))){ result.name = m[1].trim(); used.add(idx); return; }
+      if((m = line.match(/^(?:টাকা|taka|tk|amount|পরিমাণ)\s*[:：\-–]\s*(.+)$/i))){ result.amount = m[1].replace(/[^\d.]/g,''); used.add(idx); return; }
+      if((m = line.match(/^(?:তারিখ|date)\s*[:：\-–]\s*(.+)$/i))){ result.date = m[1].trim(); used.add(idx); return; }
+      if((m = line.match(/^(?:মন্তব্য|remark|note)\s*[:：\-–]\s*(.+)$/i))){ result.remark = m[1].trim(); used.add(idx); return; }
     });
 
-    // whatever wasn't consumed by a label — this is where we hunt for date/amount/ip/name
     let remainingText = lines.filter((_,i)=>!used.has(i)).join('\n');
 
-    // 2) date — pull it out first so its digits don't get mistaken for amount/ip
     if(!result.date){
       let m = remainingText.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
       if(m){
@@ -1059,25 +1080,16 @@
       }
     }
 
-    // 3) numbers — classify as আইপি (IP) vs টাকা (Tk)
-    //    "28" দিয়ে শুরু হওয়া সংখ্যা (যেমন খাতার আইডি নম্বর, ২৮১৫৮) সবসময় আইপি
-    //    ১০০ এর গুণিতক (৪০০, ৫০০, ৬০০, ১০০০...) সাধারণত বিলের টাকা
     if(!result.amount || !result.ip){
       const numMatches = [...remainingText.matchAll(/\d{1,7}/g)];
       if(numMatches.length){
         let ipMatch = null, amountMatch = null;
-
-        // pass 1: numbers starting with "28" -> IP
         if(!result.ip){
           ipMatch = numMatches.find(mm => mm[0].startsWith('28') && mm[0].length >= 4) || null;
         }
-
-        // pass 2: round-hundred numbers (not already used as IP) -> টাকা
         if(!result.amount){
           amountMatch = numMatches.find(mm => mm !== ipMatch && Number(mm[0]) % 100 === 0) || null;
         }
-
-        // fallback: if amount still unknown, pick the "roundest" remaining number
         if(!result.amount && !amountMatch){
           let best = { score:-1, match:null };
           numMatches.forEach(mm=>{
@@ -1088,57 +1100,98 @@
           });
           amountMatch = best.match;
         }
-
-        // fallback: if ip still unknown, take whatever number is left (not the amount)
         if(!result.ip && !ipMatch){
           ipMatch = numMatches.find(mm => mm !== amountMatch) || null;
         }
-
         if(!result.amount && amountMatch) result.amount = amountMatch[0];
         if(!result.ip && ipMatch) result.ip = ipMatch[0];
-
         [amountMatch, ipMatch].forEach(mm=>{
           if(mm) remainingText = remainingText.replace(mm[0], ' ');
         });
       }
     }
 
-    // 4) name — whatever text (Bangla or English words) is left after pulling out numbers/date
     if(!result.name){
-      const nameText = remainingText
-        .replace(/[:：\-–|,]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const nameText = remainingText.replace(/[:：\-–|,]+/g, ' ').replace(/\s+/g, ' ').trim();
       if(nameText) result.name = nameText;
     }
 
-    // 5) নাম না পেলে, আগের বিল থেকে IP মিলিয়ে নাম আনার চেষ্টা
-    if(!result.name && result.ip){
+    // নাম না পেলে আগের IP থেকে নাম
+    if(result.ip){
       const prevName = getPreviousNameByIp(result.ip);
-      if(prevName) result.name = prevName;
+      if(prevName){
+        if(!result.name || normName(result.name) !== normName(prevName)){
+          result.name = prevName;
+        }
+      }
     }
 
     return result;
   }
 
-  // ---- Bulk paste: many "আইপি নাম টাকা" entries in one block ----
-  // ID numbers always start with "28" in this khata's convention, so we anchor on that
-  // to reliably split a big pasted block into separate (ip, name, amount) entries.
+  // ---- Bulk extract: প্রতি লাইনে IP নাম টাকা ----
+  // নাম খালি/ভুল হলেও, IP-র আগের নাম থাকলে সেটাই auto-বসে যাবে
   function extractBulkEntries(text){
     if(!text || !text.trim()) return [];
-    const cleaned = text.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim();
-    const entryRegex = /(28\d{2,5})\s+([^\d]+?)\s+(\d{2,6})(?=\s|$)/g;
+
+    const cleaned = text
+      .replace(/\r/g, '\n')
+      .replace(/[\|,\t]+/g, ' ')
+      .replace(/[：]/g, ':')
+      .replace(/[ \u00A0]+/g, ' ')
+      .trim();
+
+    const rawLines = cleaned.split(/\n+/).map(l=> l.trim()).filter(Boolean);
+
+    // ১) IP + নাম + টাকা
+    const lineRegex1 = /^(28\d{2,6})\s+(.+?)\s+(\d{1,7})$/;
+    // ২) IP + টাকা (নাম খালি)
+    const lineRegex2 = /^(28\d{2,6})\s+(\d{1,7})$/;
+
     const entries = [];
-    let m;
-    while((m = entryRegex.exec(cleaned)) !== null){
-      let name = m[2].replace(/[:：\-–|,]+/g,' ').replace(/\s+/g,' ').trim();
-      // নাম না পেলে আগের বিল থেকে IP মিলিয়ে নাম নাও
-      if(!name){
-        name = getPreviousNameByIp(m[1]);
+
+    rawLines.forEach(line=>{
+      let ip = '', typedName = '', amount = 0, matched = false;
+
+      let m = line.match(lineRegex1);
+      if(m){
+        ip = m[1].trim();
+        typedName = m[2].replace(/[:：\-–|,]+/g,' ').replace(/\s+/g,' ').trim();
+        amount = Number(m[3]);
+        matched = true;
+      } else {
+        m = line.match(lineRegex2);
+        if(m){
+          ip = m[1].trim();
+          typedName = '';
+          amount = Number(m[2]);
+          matched = true;
+        }
       }
-      if(!name) continue;
-      entries.push({ ip:m[1], name, amount:Number(m[3]) });
-    }
+
+      if(!matched) return;
+
+      const prevName = getPreviousNameByIp(ip);
+      let finalName = typedName;
+      let status = 'new';
+
+      if(prevName){
+        finalName = prevName; // নাম যাই হোক, আগের নামটাই ব্যবহার
+        if(!typedName){
+          status = 'filled';
+        } else if(normName(prevName) === normName(typedName)){
+          status = 'ok';
+        } else {
+          status = 'corrected';
+        }
+      } else {
+        if(!typedName) return; // নতুন IP আর নাম খালি — বাদ
+        status = 'new';
+      }
+
+      entries.push({ ip, name: finalName, typedName, amount, status, prevName });
+    });
+
     return entries;
   }
 
@@ -1147,17 +1200,68 @@
 
   function updateBulkPreview(){
     bulkEntries = extractBulkEntries(pasteInput.value);
-    if(bulkEntries.length >= 2){
+
+    if(bulkEntries.length >= 1){
       bulkPreview.style.display = 'block';
-      bulkCountText.textContent = `${bulkEntries.length} টি বিল পাওয়া গেছে`;
+      const okCount = bulkEntries.filter(e=> e.status === 'ok').length;
+      const filledCount = bulkEntries.filter(e=> e.status === 'filled').length;
+      const correctedCount = bulkEntries.filter(e=> e.status === 'corrected').length;
+      const newCount = bulkEntries.filter(e=> e.status === 'new').length;
+
+      let summary = `${bulkEntries.length} টি বিল পাওয়া গেছে`;
+      const parts = [];
+      if(okCount) parts.push(`✔ ${okCount}`);
+      if(filledCount) parts.push(`📝 ${filledCount} নাম বসানো`);
+      if(correctedCount) parts.push(`🔧 ${correctedCount} সংশোধন`);
+      if(newCount) parts.push(`➕ ${newCount} নতুন`);
+      if(parts.length) summary += ' — ' + parts.join(', ');
+      bulkCountText.textContent = summary;
+
+      bulkAddBtn.disabled = false;
       bulkAddBtn.textContent = `সবগুলো (${bulkEntries.length}) যোগ করুন`;
+
       bulkList.innerHTML = '';
-      bulkEntries.forEach(en=>{
+      bulkEntries.forEach((en, i)=>{
         const row = document.createElement('div');
-        row.className = 'bulk-list-row';
-        row.innerHTML = `<span>${escapeHtml(en.ip)}</span><span class="bl-name">${escapeHtml(en.name)}</span><span class="bl-amt">${formatAmount(en.amount)}</span>`;
+        row.className = 'bulk-list-row bulk-list-row-' + en.status;
+
+        let badge = '';
+        if(en.status === 'ok')             badge = `<span class="bl-badge ok">✔ মিলেছে</span>`;
+        else if(en.status === 'filled')    badge = `<span class="bl-badge fill">📝 নাম বসানো হয়েছে</span>`;
+        else if(en.status === 'corrected') badge = `<span class="bl-badge fix">🔧 সংশোধিত</span>`;
+        else                                badge = `<span class="bl-badge new">➕ নতুন IP</span>`;
+
+        row.innerHTML = `
+          <span class="bl-ip">${escapeHtml(en.ip)}</span>
+          <input class="bl-name-input" type="text" value="${escapeHtml(en.name)}" data-idx="${i}" placeholder="নাম">
+          <span class="bl-amt">${formatAmount(en.amount)}</span>
+          <span class="bl-status">${badge}</span>
+        `;
         bulkList.appendChild(row);
       });
+
+      bulkList.querySelectorAll('.bl-name-input').forEach(inp=>{
+        inp.addEventListener('input', (e)=>{
+          const idx = Number(e.target.getAttribute('data-idx'));
+          const en = bulkEntries[idx];
+          if(!en) return;
+          en.name = e.target.value;
+          if(en.prevName){
+            if(!en.name.trim())             en.status = 'filled';
+            else if(normName(en.prevName) === normName(en.name)) en.status = 'ok';
+            else                             en.status = 'corrected';
+          } else {
+            en.status = 'new';
+          }
+          const badgeCell = e.target.parentElement.querySelector('.bl-status');
+          if(en.status === 'ok')             badgeCell.innerHTML = `<span class="bl-badge ok">✔ মিলেছে</span>`;
+          else if(en.status === 'filled')    badgeCell.innerHTML = `<span class="bl-badge fill">📝 নাম বসানো হয়েছে</span>`;
+          else if(en.status === 'corrected') badgeCell.innerHTML = `<span class="bl-badge fix">🔧 সংশোধিত</span>`;
+          else                                badgeCell.innerHTML = `<span class="bl-badge new">➕ নতুন IP</span>`;
+          e.target.parentElement.className = 'bulk-list-row bulk-list-row-' + en.status;
+        });
+      });
+
       pasteFillBtn.style.display = 'none';
     } else {
       bulkPreview.style.display = 'none';
@@ -1181,7 +1285,6 @@
         done++;
         bulkAddBtn.textContent = `যোগ হচ্ছে... (${done}/${total})`;
       }
-      // ছবিগুলো প্রতিটা আইপির সাথে আলাদা আলাদা না জুড়ে, তারিখের সাথে সেভ হবে
       for(const image of images){
         await addBillPhoto({ date, image, createdAt: Date.now() });
       }
@@ -1208,7 +1311,6 @@
     if(parsed.ip) ipInput.value = parsed.ip;
     if(parsed.name) nameInput.value = parsed.name;
     if(parsed.amount) amountInput.value = parsed.amount;
-    // paste box-এর তারিখ বক্সে কিছু বসানো থাকলে সেটাই অগ্রাধিকার পাবে, নাহলে টেক্সট থেকে পাওয়া তারিখ
     if(pasteDateInput.value){
       dateInput.value = pasteDateInput.value;
     } else if(parsed.date){
@@ -1216,8 +1318,7 @@
     }
     if(parsed.remark) remarkInput.value = parsed.remark;
 
-    // যদি নাম ফাঁকা থাকে, IP থেকে auto-fill এর চেষ্টা করো
-    if(!nameInput.value.trim()){
+    if(!nameInput.value.trim() && ipInput.value.trim()){
       const prevName = getPreviousNameByIp(ipInput.value.trim());
       if(prevName) nameInput.value = prevName;
     }
@@ -1334,7 +1435,7 @@
     imgModal.classList.add('open');
   }
 
-  // ---- Edit modal (IP, নাম, টাকা, তারিখ সম্পাদনা) ----
+  // ---- Edit modal ----
   const editModal = document.getElementById('editModal');
   const editModalClose = document.getElementById('editModalClose');
   const editIp = document.getElementById('editIp');
@@ -1358,7 +1459,11 @@
     const ip = editIp.value.trim();
     if(!ip) return;
     const prevName = getPreviousNameByIp(ip);
-    if(prevName) editName.value = prevName;
+    if(prevName){
+      if(!editName.value.trim() || normName(editName.value) !== normName(prevName)){
+        editName.value = prevName;
+      }
+    }
   });
 
   editModalClose.addEventListener('click', ()=> editModal.classList.remove('open'));
@@ -1518,7 +1623,6 @@
       });
       billGrid.appendChild(headerRow);
 
-      // এই তারিখের সাথে যুক্ত বিলের ছবি — কোনো নির্দিষ্ট আইপি ছাড়া, শুধু ছবি + তারিখ
       const datePhotos = allBillPhotos.filter(p=> p.date === dateKey);
       datePhotos.forEach(photo=>{
         const photoRow = document.createElement('tr');
@@ -1589,7 +1693,6 @@
       });
     });
 
-    // যেসব বিল আর তালিকায় নেই (মুছে ফেলা হয়েছে বা ফিল্টারে বাদ পড়েছে) সেগুলোর নির্বাচন বাদ দাও
     const visibleIds = new Set(filtered.map(b=> b.id));
     Array.from(selectedIds).forEach(id=>{ if(!visibleIds.has(id)) selectedIds.delete(id); });
     updateMultiDeleteUI();
@@ -1597,7 +1700,7 @@
     totalAmount.textContent = formatAmount(grandSum);
   }
 
-  // ---- Local cache so the page shows bills instantly, before Firebase finishes syncing ----
+  // ---- Local cache ----
   const CACHE_KEY = 'billstore_cache_v1';
 
   (function loadFromCache(){
@@ -1618,10 +1721,6 @@
 
   function saveToCache(bills){
     try{
-      // ছবি (base64) বাদ দিয়ে সেভ করা হয়, কারণ ছবিসহ ডেটা localStorage-এর জায়গার সীমা
-      // (~৫-১০MB) সহজেই ছাড়িয়ে যায় এবং তখন পুরো সেভটাই silently fail করে।
-      // ছবি ছাড়া, লেখা অংশ (আইপি/নাম/টাকা/তারিখ) দিয়ে সাথে সাথে তালিকা দেখানো যাবে,
-      // আসল ছবি একটু পরে Firebase থেকে এসে যোগ হয়ে যাবে।
       const lightweight = bills.map(b=>{
         const { image, ...rest } = b;
         return rest;
@@ -1632,7 +1731,7 @@
     }
   }
 
-  // ---- Realtime sync from Firebase ----
+  // ---- Realtime sync ----
   billsRef.on('value', (snapshot)=>{
     const val = snapshot.val() || {};
     allBills = Object.keys(val).map(key=> ({ id:key, ...val[key] }));
