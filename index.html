@@ -988,6 +988,30 @@
     setBillImage(null);
   });
 
+  // ---- আগের বিল থেকে IP → নাম খোঁজা (auto-fill) ----
+  function getPreviousNameByIp(ip){
+    if(!ip) return '';
+    const trimmed = String(ip).trim();
+    if(!trimmed) return '';
+    // exact IP match — সর্বশেষ entry-এর নাম আগে দেখাবে
+    const matches = allBills
+      .filter(b => String(b.ip || '').trim() === trimmed && b.name)
+      .sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+    return matches.length ? matches[0].name : '';
+  }
+
+  // IP ফিল্ডে টাইপ করার সাথে সাথে আগের নাম auto-fill হবে
+  function autoFillNameFromIp(){
+    const ip = ipInput.value.trim();
+    if(!ip) return;
+    const prevName = getPreviousNameByIp(ip);
+    if(prevName){
+      nameInput.value = prevName;
+    }
+  }
+  ipInput.addEventListener('input', autoFillNameFromIp);
+  ipInput.addEventListener('blur', autoFillNameFromIp);
+
   // ---- Paste box: parse pasted bill text into the form fields ----
   function parseBillText(text){
     const result = { ip:'', name:'', amount:'', date:'', remark:'' };
@@ -1088,6 +1112,12 @@
       if(nameText) result.name = nameText;
     }
 
+    // 5) নাম না পেলে, আগের বিল থেকে IP মিলিয়ে নাম আনার চেষ্টা
+    if(!result.name && result.ip){
+      const prevName = getPreviousNameByIp(result.ip);
+      if(prevName) result.name = prevName;
+    }
+
     return result;
   }
 
@@ -1101,7 +1131,11 @@
     const entries = [];
     let m;
     while((m = entryRegex.exec(cleaned)) !== null){
-      const name = m[2].replace(/[:：\-–|,]+/g,' ').replace(/\s+/g,' ').trim();
+      let name = m[2].replace(/[:：\-–|,]+/g,' ').replace(/\s+/g,' ').trim();
+      // নাম না পেলে আগের বিল থেকে IP মিলিয়ে নাম নাও
+      if(!name){
+        name = getPreviousNameByIp(m[1]);
+      }
       if(!name) continue;
       entries.push({ ip:m[1], name, amount:Number(m[3]) });
     }
@@ -1181,6 +1215,13 @@
       dateInput.value = parsed.date;
     }
     if(parsed.remark) remarkInput.value = parsed.remark;
+
+    // যদি নাম ফাঁকা থাকে, IP থেকে auto-fill এর চেষ্টা করো
+    if(!nameInput.value.trim()){
+      const prevName = getPreviousNameByIp(ipInput.value.trim());
+      if(prevName) nameInput.value = prevName;
+    }
+
     if(!parsed.name && !parsed.amount){
       alert('টেক্সট থেকে কিছু আলাদা করা যায়নি, দয়া করে ফর্মটি নিজে পূরণ করুন।');
     }
@@ -1311,6 +1352,14 @@
     editDate.value = bill.date || '';
     editModal.classList.add('open');
   }
+
+  // edit modal-এও IP বদলালে আগের নাম auto-fill
+  editIp.addEventListener('input', ()=>{
+    const ip = editIp.value.trim();
+    if(!ip) return;
+    const prevName = getPreviousNameByIp(ip);
+    if(prevName) editName.value = prevName;
+  });
 
   editModalClose.addEventListener('click', ()=> editModal.classList.remove('open'));
   editModal.addEventListener('click', ()=> editModal.classList.remove('open'));
