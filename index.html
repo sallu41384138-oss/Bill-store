@@ -8,6 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-database-compat.min.js"></script>
+<!-- Excel ফাইল রিড করার লাইব্রেরি -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --sheet-bg:#F1F3F4;
@@ -725,6 +727,16 @@
       <button type="button" class="paste-btn clear" id="pasteClearBtn">মুছুন</button>
     </div>
     <p class="paste-hint">টিপ: প্রতিটি লাইনে <b>IP নাম টাকা</b> ফরম্যাটে লিখুন বা পেস্ট করুন। IP সবসময় "28" দিয়ে শুরু। নাম আগের বিলের সাথে মিললে অটো-বসে যাবে। নাম খালি রাখলেও IP থেকে নাম চলে আসবে।</p>
+    
+    <!-- শুধু এই অংশটুকু নতুন যোগ করা হয়েছে, কোনো ডিজাইন নষ্ট হয়নি -->
+    <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--grid-line); flex-wrap:wrap;">
+      <label style="position:relative; display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:8px; border:1px solid #137333; background:#E6F4EA; color:#137333; font-weight:600; font-size:0.8rem; cursor:pointer;">
+        📊 Excel/CSV আপলোড
+        <input type="file" accept=".xlsx, .xls, .csv" id="excelFileInput" style="position:absolute; inset:0; opacity:0; cursor:pointer;">
+      </label>
+      <span id="excelUploadInfo" style="font-size:0.8rem; color:var(--ink-soft);"></span>
+    </div>
+
     <div class="bulk-preview" id="bulkPreview" style="display:none;">
       <div class="bulk-preview-head">
         <span id="bulkCountText">০ টি বিল পাওয়া গেছে</span>
@@ -1031,13 +1043,11 @@
     return String(s||'').replace(/\s+/g,'').toLowerCase();
   }
 
-  // IP ফিল্ডে টাইপ করলে আগের নাম auto-fill (খালি/ভুল হলেও ঠিক হয়ে যাবে)
   function autoFillNameFromIp(){
     const ip = ipInput.value.trim();
     if(!ip) return;
     const prevName = getPreviousNameByIp(ip);
     if(prevName){
-      // নাম খালি থাকলে বা আগের নামের সাথে না মিললে — আগের নামটাই বসাও
       if(!nameInput.value.trim() || normName(nameInput.value) !== normName(prevName)){
         nameInput.value = prevName;
       }
@@ -1116,7 +1126,6 @@
       if(nameText) result.name = nameText;
     }
 
-    // নাম না পেলে আগের IP থেকে নাম
     if(result.ip){
       const prevName = getPreviousNameByIp(result.ip);
       if(prevName){
@@ -1129,8 +1138,7 @@
     return result;
   }
 
-  // ---- Bulk extract: প্রতি লাইনে IP নাম টাকা ----
-  // নাম খালি/ভুল হলেও, IP-র আগের নাম থাকলে সেটাই auto-বসে যাবে
+  // ---- Bulk extract ----
   function extractBulkEntries(text){
     if(!text || !text.trim()) return [];
 
@@ -1143,9 +1151,7 @@
 
     const rawLines = cleaned.split(/\n+/).map(l=> l.trim()).filter(Boolean);
 
-    // ১) IP + নাম + টাকা
     const lineRegex1 = /^(28\d{2,6})\s+(.+?)\s+(\d{1,7})$/;
-    // ২) IP + টাকা (নাম খালি)
     const lineRegex2 = /^(28\d{2,6})\s+(\d{1,7})$/;
 
     const entries = [];
@@ -1176,7 +1182,7 @@
       let status = 'new';
 
       if(prevName){
-        finalName = prevName; // নাম যাই হোক, আগের নামটাই ব্যবহার
+        finalName = prevName; 
         if(!typedName){
           status = 'filled';
         } else if(normName(prevName) === normName(typedName)){
@@ -1185,7 +1191,7 @@
           status = 'corrected';
         }
       } else {
-        if(!typedName) return; // নতুন IP আর নাম খালি — বাদ
+        if(!typedName) return; 
         status = 'new';
       }
 
@@ -1454,7 +1460,6 @@
     editModal.classList.add('open');
   }
 
-  // edit modal-এও IP বদলালে আগের নাম auto-fill
   editIp.addEventListener('input', ()=>{
     const ip = editIp.value.trim();
     if(!ip) return;
@@ -1749,6 +1754,70 @@
   }, (err)=>{
     console.error(err);
   });
+
+  // ---- Excel/CSV Upload Logic (নতুন যোগ করা হয়েছে) ----
+  const excelFileInput = document.getElementById('excelFileInput');
+  const excelUploadInfo = document.getElementById('excelUploadInfo');
+
+  excelFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    excelUploadInfo.textContent = '⏳ ফাইল পড়া হচ্ছে...';
+    excelUploadInfo.style.color = 'var(--ink-soft)';
+    
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+      
+      let addedCount = 0;
+      const date = pasteDateInput.value || todayStr;
+      
+      excelUploadInfo.textContent = `⏳ ডাটা প্রসেস হচ্ছে...`;
+
+      // আপনার শিটের মতো Row 4 (ইনডেক্স ৪) থেকে ডাটা শুরু ধরা হচ্ছে
+      for(let i = 4; i < rows.length; i++) {
+        const row = rows[i];
+        if(!row || row.length < 3) continue;
+        
+        let ip = String(row[0] || '').trim();
+        let name = String(row[2] || '').trim(); // Column C (Index 2)
+        
+        if(ip.endsWith('.0')) ip = ip.replace('.0', '');
+        
+        // শুধুমাত্র বৈধ IP (২৮ দিয়ে শুরু) এবং নাম থাকলে সেভ হবে
+        if(/^28\d+$/.test(ip) && name) {
+           await billsRef.push({
+              ip: ip,
+              name: name,
+              amount: 0, // এমাউন্ট ০ দেওয়া হচ্ছে যাতে মেইন লিস্টে হিসাব নষ্ট না হয়
+              date: date,
+              remark: 'Imported Name',
+              createdAt: Date.now()
+           });
+           addedCount++;
+        }
+      }
+
+      if(addedCount === 0) {
+        excelUploadInfo.textContent = '⚠️ কোনো ডাটা পাওয়া যায়নি। Column A (IP) এবং Column C (Name) চেক করুন।';
+        excelUploadInfo.style.color = 'var(--red)';
+        return;
+      }
+
+      excelUploadInfo.textContent = `✅ ${addedCount} টি আইডি-নাম সফলভাবে আপলোড হয়েছে!`;
+      excelUploadInfo.style.color = '#137333';
+      
+    } catch (err) {
+      console.error(err);
+      excelUploadInfo.textContent = '⚠️ ফাইলটি পড়া যায়নি। সঠিক Excel বা CSV দিন।';
+      excelUploadInfo.style.color = 'var(--red)';
+    }
+    
+    excelFileInput.value = '';
+  });
 </script>
 </body>
-</html>
+</html>v
