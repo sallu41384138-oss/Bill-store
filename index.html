@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="bn"> 
+<html lang="bn">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-database-compat.min.js"></script>
-<!-- Excel ফাইল রিড করার লাইব্রেরি -->
+<!-- Excel Reader -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -695,6 +695,14 @@
     cursor:pointer;
     z-index:101;
   }
+
+  /* Import Box Styles */
+  .import-box {
+    background: #F8FBFF; border: 1px solid var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  }
+  .import-box-info { font-size: 0.85rem; color: #137333; font-weight: 600; }
+  .import-btn-del { background: #FCE8E6; color: var(--red); border: 1px solid #FAD2CF; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; }
+  .import-btn-edit { background: #E8F0FE; color: var(--accent); border: 1px solid #D2E3FC; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; margin-right: 6px; }
 </style>
 </head>
 <body>
@@ -726,15 +734,24 @@
       </label>
       <button type="button" class="paste-btn clear" id="pasteClearBtn">মুছুন</button>
     </div>
-    <p class="paste-hint">টিপ: প্রতিটি লাইনে <b>IP নাম টাকা</b> ফরম্যাটে লিখুন বা পেস্ট করুন। IP সবসময় "28" দিয়ে শুরু। নাম আগের বিলের সাথে মিললে অটো-বসে যাবে। নাম খালি রাখলেও IP থেকে নাম চলে আসবে।</p>
+    <p class="paste-hint">টিপ: প্রতিটি লাইনে <b>IP নাম টাকা</b> ফরম্যাটে লিখুন বা পেস্ট করুন। IP সবসময় "28" দিয়ে শুরু। নাম আগের বিলের সাথে মিললে অটো-বসে যাবে।</p>
     
-    <!-- শুধু এই অংশটুকু নতুন যোগ করা হয়েছে, কোনো ডিজাইন নষ্ট হয়নি -->
+    <!-- Excel Upload Section -->
     <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--grid-line); flex-wrap:wrap;">
       <label style="position:relative; display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:8px; border:1px solid #137333; background:#E6F4EA; color:#137333; font-weight:600; font-size:0.8rem; cursor:pointer;">
         📊 Excel/CSV আপলোড
         <input type="file" accept=".xlsx, .xls, .csv" id="excelFileInput" style="position:absolute; inset:0; opacity:0; cursor:pointer;">
       </label>
       <span id="excelUploadInfo" style="font-size:0.8rem; color:var(--ink-soft);"></span>
+    </div>
+
+    <!-- Import Info & Delete Box -->
+    <div class="import-box" id="importInfoBox" style="display:none;">
+      <div class="import-box-info">✅ বর্তমানে <b><span id="importedCount">0</span></b> টি নাম ডাটাবেসে সেভ আছে।</div>
+      <div>
+        <button type="button" class="import-btn-edit" id="openImportEditBtn">✎ এডিট করুন</button>
+        <button type="button" class="import-btn-del" id="deleteImportedBtn">সব ডিলিট করুন</button>
+      </div>
     </div>
 
     <div class="bulk-preview" id="bulkPreview" style="display:none;">
@@ -849,6 +866,7 @@
   </div>
 </div>
 
+<!-- Edit Bill Modal -->
 <div class="modal" id="editModal">
   <button class="modal-close" id="editModalClose">&times;</button>
   <div class="modal-card" onclick="event.stopPropagation()">
@@ -860,6 +878,22 @@
         <tr><td class="mf-label">তারিখ</td><td class="mf-value"><input type="date" id="editDate"></td></tr>
       </table>
       <button type="button" class="modal-save-btn" id="editSaveBtn">সংরক্ষণ করুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Imported Name Modal -->
+<div class="modal" id="importEditModal">
+  <button class="modal-close" id="importEditModalClose">&times;</button>
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-info">
+      <h3 style="margin-top:0; font-size:1rem; color:var(--accent);">আইডি ও নাম এডিট করুন</h3>
+      <p style="font-size:0.8rem; color:var(--ink-soft); margin-bottom:10px;">যে আইডির নাম পরিবর্তন করতে চান, সেটি নিচে লিখুন।</p>
+      <table class="modal-fields">
+        <tr><td class="mf-label">IP</td><td class="mf-value"><input type="text" id="importEditIp" placeholder="28001"></td></tr>
+        <tr><td class="mf-label">নাম</td><td class="mf-value"><input type="text" id="importEditName" placeholder="নতুন নাম"></td></tr>
+      </table>
+      <button type="button" class="modal-save-btn" id="importEditSaveBtn">নাম সেভ করুন</button>
     </div>
   </div>
 </div>
@@ -879,6 +913,7 @@
   const fdb = firebase.database();
   const billsRef = fdb.ref('bills');
   const billPhotosRef = fdb.ref('billPhotos');
+  const ipNameMapRef = fdb.ref('ipNameMap');
 
   // ---- Telegram notification setup ----
   const TELEGRAM_BOT_TOKEN = '8902993837:AAEcApvYlPYoUWyMUdPCYHdt6Z_psHV7MnE';
@@ -962,11 +997,27 @@
   const bulkCountText = document.getElementById('bulkCountText');
   const bulkList = document.getElementById('bulkList');
   const bulkAddBtn = document.getElementById('bulkAddBtn');
+  
+  // Excel & Import UI
+  const excelFileInput = document.getElementById('excelFileInput');
+  const excelUploadInfo = document.getElementById('excelUploadInfo');
+  const importInfoBox = document.getElementById('importInfoBox');
+  const importedCount = document.getElementById('importedCount');
+  const deleteImportedBtn = document.getElementById('deleteImportedBtn');
+  const openImportEditBtn = document.getElementById('openImportEditBtn');
+
+  // Import Edit Modal UI
+  const importEditModal = document.getElementById('importEditModal');
+  const importEditModalClose = document.getElementById('importEditModalClose');
+  const importEditIp = document.getElementById('importEditIp');
+  const importEditName = document.getElementById('importEditName');
+  const importEditSaveBtn = document.getElementById('importEditSaveBtn');
 
   let currentImageData = null;
   let currentImageDataList = [];
   let allBills = [];
   let allBillPhotos = [];
+  let ipNameMap = {}; 
   let expandedDates = new Set();
   let selectedIds = new Set();
   monthSelect.value = String(new Date().getMonth());
@@ -1029,14 +1080,20 @@
     setBillImage(null);
   });
 
-  // ---- আগের বিল থেকে IP → নাম খোঁজা ----
+  // ---- আগের বিল বা Excel থেকে IP → নাম খোঁজা ----
   function getPreviousNameByIp(ip){
     if(!ip) return '';
     const trimmed = String(ip).trim();
     if(!trimmed) return '';
+    
+    // ১ম চেক: Imported Data
+    if(ipNameMap[trimmed]) return ipNameMap[trimmed];
+
+    // ২য় চেক: আগের বিল
     const matches = allBills
       .filter(b => String(b.ip || '').trim() === trimmed && b.name)
       .sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+      
     return matches.length ? matches[0].name : '';
   }
   function normName(s){
@@ -1495,6 +1552,51 @@
     editSaveBtn.disabled = false;
   });
 
+  // ---- Import Name Edit Modal ----
+  openImportEditBtn.addEventListener('click', ()=>{
+    importEditIp.value = '';
+    importEditName.value = '';
+    importEditModal.classList.add('open');
+  });
+  importEditModalClose.addEventListener('click', ()=> importEditModal.classList.remove('open'));
+  importEditModal.addEventListener('click', ()=> importEditModal.classList.remove('open'));
+
+  importEditIp.addEventListener('input', ()=>{
+    const ip = importEditIp.value.trim();
+    if(!ip) return;
+    if(ipNameMap[ip]) {
+      importEditName.value = ipNameMap[ip];
+    } else {
+      importEditName.value = '';
+    }
+  });
+
+  importEditSaveBtn.addEventListener('click', async ()=>{
+    const ip = importEditIp.value.trim();
+    const name = importEditName.value.trim();
+    
+    if(!ip || !name) {
+      alert('আইপি এবং নাম দুটোই দিতে হবে।');
+      return;
+    }
+    if(!/^28\d+$/.test(ip)) {
+      alert('সঠিক আইপি দিন (২৮ দিয়ে শুরু)।');
+      return;
+    }
+
+    importEditSaveBtn.disabled = true;
+    importEditSaveBtn.textContent = 'সেভ হচ্ছে...';
+    try {
+      await ipNameMapRef.child(ip).set(name);
+      alert('সফলভাবে সেভ হয়েছে!');
+      importEditModal.classList.remove('open');
+    } catch(e) {
+      alert('সেভ করতে সমস্যা হয়েছে!');
+    }
+    importEditSaveBtn.disabled = false;
+    importEditSaveBtn.textContent = 'নাম সেভ করুন';
+  });
+
   function escapeHtml(str){
     const div = document.createElement('div');
     div.textContent = str;
@@ -1699,7 +1801,7 @@
     });
 
     const visibleIds = new Set(filtered.map(b=> b.id));
-    Array.from(selectedIds).forEach(id=>{ if(!visibleIds.has(id)) selectedIds.delete(id); });
+    Array.from(selectedIds).forEach(id=> { if(!visibleIds.has(id)) selectedIds.delete(id); });
     updateMultiDeleteUI();
 
     totalAmount.textContent = formatAmount(grandSum);
@@ -1755,10 +1857,39 @@
     console.error(err);
   });
 
-  // ---- Excel/CSV Upload Logic (নতুন যোগ করা হয়েছে) ----
-  const excelFileInput = document.getElementById('excelFileInput');
-  const excelUploadInfo = document.getElementById('excelUploadInfo');
+  // Firebase theke ipNameMap load kora
+  ipNameMapRef.on('value', (snapshot)=>{
+    ipNameMap = snapshot.val() || {};
+    const count = Object.keys(ipNameMap).length;
+    
+    // Box update kora
+    if(count > 0) {
+      importInfoBox.style.display = 'flex';
+      importedCount.textContent = count;
+    } else {
+      importInfoBox.style.display = 'none';
+    }
+  }, (err)=>{
+    console.error(err);
+  });
 
+  // Delete Imported Data
+  deleteImportedBtn.addEventListener('click', async () => {
+    if(!confirm('আপনি কি নিশ্চিত যে সব ইমপোর্ট করা নাম ডিলিট করতে চান? (মেইন বিলের ডাটা মুছবে না)')) return;
+    deleteImportedBtn.disabled = true;
+    deleteImportedBtn.textContent = 'মুছছে...';
+    try {
+      await ipNameMapRef.remove();
+      excelUploadInfo.textContent = '✅ সব ডাটা মুছে ফেলা হয়েছে।';
+      excelUploadInfo.style.color = '#137333';
+    } catch(e) {
+      alert('মুছতে সমস্যা হয়েছে!');
+    }
+    deleteImportedBtn.disabled = false;
+    deleteImportedBtn.textContent = 'সব ডিলিট করুন';
+  });
+
+  // ---- Excel/CSV Upload Logic ----
   excelFileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if(!file) return;
@@ -1773,30 +1904,19 @@
       const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
       
       let addedCount = 0;
-      const date = pasteDateInput.value || todayStr;
-      
-      excelUploadInfo.textContent = `⏳ ডাটা প্রসেস হচ্ছে...`;
+      let updates = {};
 
-      // আপনার শিটের মতো Row 4 (ইনডেক্স ৪) থেকে ডাটা শুরু ধরা হচ্ছে
       for(let i = 4; i < rows.length; i++) {
         const row = rows[i];
         if(!row || row.length < 3) continue;
         
         let ip = String(row[0] || '').trim();
-        let name = String(row[2] || '').trim(); // Column C (Index 2)
+        let name = String(row[2] || '').trim(); 
         
         if(ip.endsWith('.0')) ip = ip.replace('.0', '');
         
-        // শুধুমাত্র বৈধ IP (২৮ দিয়ে শুরু) এবং নাম থাকলে সেভ হবে
         if(/^28\d+$/.test(ip) && name) {
-           await billsRef.push({
-              ip: ip,
-              name: name,
-              amount: 0, // এমাউন্ট ০ দেওয়া হচ্ছে যাতে মেইন লিস্টে হিসাব নষ্ট না হয়
-              date: date,
-              remark: 'Imported Name',
-              createdAt: Date.now()
-           });
+           updates[ip] = name;
            addedCount++;
         }
       }
@@ -1806,6 +1926,9 @@
         excelUploadInfo.style.color = 'var(--red)';
         return;
       }
+
+      excelUploadInfo.textContent = `⏳ ${addedCount} টি নাম আপলোড হচ্ছে...`;
+      await ipNameMapRef.update(updates);
 
       excelUploadInfo.textContent = `✅ ${addedCount} টি আইডি-নাম সফলভাবে আপলোড হয়েছে!`;
       excelUploadInfo.style.color = '#137333';
@@ -1820,4 +1943,4 @@
   });
 </script>
 </body>
-</html>v
+</html>
